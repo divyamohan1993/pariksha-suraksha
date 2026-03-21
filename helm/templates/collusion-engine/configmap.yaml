@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-collusion-engine-config
+  namespace: {{ .Values.namespaces.api }}
+  labels:
+    {{- include "pariksha.componentLabels" (dict "Chart" .Chart "Release" .Release "component" "collusion-engine") | nindent 4 }}
+data:
+  NODE_ENV: {{ .Values.global.environment }}
+  PORT: {{ .Values.collusionEngine.port | quote }}
+  GRPC_PORT: {{ .Values.collusionEngine.grpcPort | quote }}
+  GCP_PROJECT_ID: {{ .Values.global.gcpProjectId }}
+  REDIS_HOST: {{ .Values.redis.host | quote }}
+  REDIS_PORT: {{ .Values.redis.port | quote }}
+  FIRESTORE_DATABASE: {{ .Values.global.firestoreDatabase }}
+  GCS_BUCKET_REPORTS: {{ .Values.global.gcsBucketReports }}
+  PUBSUB_TOPIC_COLLUSION_DETECTOR: "collusion-detector-topic"
+  PUBSUB_TOPIC_SCORE_EQUATOR: "score-equator-topic"
+  LOG_LEVEL: "info"

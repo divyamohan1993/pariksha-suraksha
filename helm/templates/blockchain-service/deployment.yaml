@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}-blockchain-service
+  namespace: {{ .Values.namespaces.api }}
+  labels:
+    {{- include "pariksha.componentLabels" (dict "Chart" .Chart "Release" .Release "component" "blockchain-service") | nindent 4 }}
+spec:
+  replicas: {{ .Values.blockchainService.replicas }}
+  selector:
+    matchLabels:
+      {{- include "pariksha.selectorLabels" (dict "Release" .Release "component" "blockchain-service") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pariksha.componentLabels" (dict "Chart" .Chart "Release" .Release "component" "blockchain-service") | nindent 8 }}
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/blockchain-service/configmap.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "pariksha.serviceAccountName" (dict "Release" .Release "saName" .Values.blockchainService.serviceAccount.name) }}
+      securityContext:
+        {{- include "pariksha.securityContext" . | nindent 8 }}
+      {{- include "pariksha.podAntiAffinity" "blockchain-service" | nindent 6 }}
+      {{- with .Values.blockchainService.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.blockchainService.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: blockchain-service
+          image: {{ .Values.global.image.registry }}/{{ .Values.blockchainService.image }}:{{ .Chart.AppVersion }}
+          imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.blockchainService.port }}
+              protocol: TCP
+            - name: grpc
+              containerPort: {{ .Values.blockchainService.grpcPort }}
+              protocol: TCP
+          envFrom:
+            - configMapRef:
+                name: {{ .Release.Name }}-blockchain-service-config
+          env:
+            - name: FABRIC_ADMIN_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-fabric-secrets
+                  key: admin-key
+                  optional: true
+            - name: FABRIC_ADMIN_CERT
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Release.Name }}-fabric-secrets
+                  key: admin-cert
+                  optional: true
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.blockchainService.resources | nindent 12 }}
+          securityContext:
+            {{- include "pariksha.containerSecurityContext" . | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+            - name: fabric-crypto
+              mountPath: /etc/fabric/crypto
+              readOnly: true
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 100Mi
+        - name: fabric-crypto
+          secret:
+            secretName: {{ .Release.Name }}-fabric-crypto
+            optional: true

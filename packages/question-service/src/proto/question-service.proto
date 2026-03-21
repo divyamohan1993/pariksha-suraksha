@@ -1,0 +1,182 @@
+syntax = "proto3";
+
+package question;
+
+service QuestionService {
+  rpc GetTemplate(GetTemplateRequest) returns (TemplateResponse);
+  rpc ListTemplates(ListTemplatesRequest) returns (ListTemplatesResponse);
+  rpc CreateTemplate(CreateTemplateRequest) returns (TemplateResponse);
+  rpc GenerateTemplate(GenerateTemplateRequest) returns (TemplateResponse);
+  rpc GetExam(GetExamRequest) returns (ExamResponse);
+  rpc CreateExam(CreateExamRequest) returns (ExamResponse);
+  rpc DefineBlueprint(DefineBlueprintRequest) returns (ExamResponse);
+  rpc TriggerMatrixSolver(TriggerMatrixSolverRequest) returns (TriggerMatrixSolverResponse);
+}
+
+message GetTemplateRequest {
+  string template_id = 1;
+}
+
+message ListTemplatesRequest {
+  string subject = 1;
+  string topic = 2;
+  string bloom_level = 3;
+  string status = 4;
+  int32 limit = 5;
+  string start_after = 6;
+}
+
+message ParameterDefinition {
+  string name = 1;
+  string type = 2;
+  double min = 3;
+  double max = 4;
+  double step = 5;
+  repeated string allowed_values = 6;
+  string unit = 7;
+  string description = 8;
+}
+
+message DistractorDefinition {
+  string formula = 1;
+  string type = 2;
+  string label = 3;
+  string explanation = 4;
+}
+
+message IrtParameters {
+  double a_mean = 1;
+  double a_std = 2;
+  double b_mean = 3;
+  double b_std = 4;
+  double c_mean = 5;
+  double c_std = 6;
+}
+
+message DistractorProfile {
+  double a = 1;
+  double b = 2;
+  double c = 3;
+  double d = 4;
+}
+
+message TemplateMetadata {
+  string subject = 1;
+  string topic = 2;
+  string subtopic = 3;
+  string bloom_level = 4;
+  int32 field_test_count = 5;
+  string calibration_date = 6;
+  string created_at = 7;
+  string updated_at = 8;
+  string created_by = 9;
+  string status = 10;
+  bool is_deleted = 11;
+}
+
+message TemplateContent {
+  string text = 1;
+  repeated ParameterDefinition parameters = 2;
+  string answer_formula = 3;
+  repeated DistractorDefinition distractors = 4;
+}
+
+message TemplateResponse {
+  string id = 1;
+  TemplateMetadata metadata = 2;
+  TemplateContent template = 3;
+  IrtParameters irt_params = 4;
+  DistractorProfile distractor_profile = 5;
+}
+
+message ListTemplatesResponse {
+  repeated TemplateResponse items = 1;
+  string next_page_token = 2;
+}
+
+message CreateTemplateRequest {
+  string subject = 1;
+  string topic = 2;
+  string subtopic = 3;
+  string bloom_level = 4;
+  string template_text = 5;
+  repeated ParameterDefinition parameters = 6;
+  string answer_formula = 7;
+  repeated DistractorDefinition distractors = 8;
+  string created_by = 9;
+}
+
+message GenerateTemplateRequest {
+  string subject = 1;
+  string topic = 2;
+  string subtopic = 3;
+  string bloom_level = 4;
+  string example_template = 5;
+  string created_by = 6;
+}
+
+message GetExamRequest {
+  string exam_id = 1;
+}
+
+message CreateExamRequest {
+  string name = 1;
+  string date = 2;
+  repeated string subjects = 3;
+  int32 total_questions = 4;
+  int32 total_candidates = 5;
+  string created_by = 6;
+}
+
+message DifficultyDistribution {
+  double easy = 1;
+  double medium = 2;
+  double hard = 3;
+}
+
+message TopicCoverage {
+  string topic = 1;
+  repeated string subtopics = 2;
+  int32 question_count = 3;
+  double weight = 4;
+}
+
+message ExamBlueprint {
+  DifficultyDistribution difficulty_dist = 1;
+  repeated TopicCoverage topic_coverage = 2;
+  int32 questions_per_paper = 3;
+}
+
+message ExamMetadata {
+  string name = 1;
+  string date = 2;
+  repeated string subjects = 3;
+  int32 total_questions = 4;
+  int32 total_candidates = 5;
+  string status = 6;
+  string created_at = 7;
+  string updated_at = 8;
+  string created_by = 9;
+}
+
+message ExamResponse {
+  string id = 1;
+  ExamMetadata metadata = 2;
+  ExamBlueprint blueprint = 3;
+}
+
+message DefineBlueprintRequest {
+  string exam_id = 1;
+  DifficultyDistribution difficulty_dist = 2;
+  repeated TopicCoverage topic_coverage = 3;
+  int32 questions_per_paper = 4;
+}
+
+message TriggerMatrixSolverRequest {
+  string exam_id = 1;
+}
+
+message TriggerMatrixSolverResponse {
+  string message_id = 1;
+  string correlation_id = 2;
+}

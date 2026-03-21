@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-paper-generator
+  namespace: {{ .Values.namespaces.api }}
+  labels:
+    {{- include "pariksha.componentLabels" (dict "Chart" .Chart "Release" .Release "component" "paper-generator") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ .Values.paperGenerator.port }}
+      targetPort: http
+      protocol: TCP
+    - name: grpc
+      port: {{ .Values.paperGenerator.grpcPort }}
+      targetPort: grpc
+      protocol: TCP
+  selector:
+    {{- include "pariksha.selectorLabels" (dict "Release" .Release "component" "paper-generator") | nindent 4 }}

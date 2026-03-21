@@ -1,0 +1,186 @@
+syntax = "proto3";
+
+package pariksha.crypto;
+
+option go_package = "pariksha/crypto";
+
+// ────────────────────────────────────────────────────────────────────────
+// Crypto Lifecycle Service — Encryption, TLP, key scheduling, Shamir SSS
+// ────────────────────────────────────────────────────────────────────────
+
+service CryptoLifecycleService {
+  // Per-question encryption workflow
+  rpc EncryptExam(EncryptExamRequest) returns (EncryptExamResponse);
+  rpc GetEncryptionStatus(GetEncryptionStatusRequest) returns (EncryptionStatusResponse);
+
+  // Key distribution to centers
+  rpc DistributeKeys(DistributeKeysRequest) returns (DistributeKeysResponse);
+
+  // Key schedule management
+  rpc GetKeyStatus(GetKeyStatusRequest) returns (KeyStatusResponse);
+
+  // Scheduled key release (called by Cloud Scheduler at exam_start_time)
+  rpc ReleaseKeys(ReleaseKeysRequest) returns (ReleaseKeysResponse);
+
+  // Emergency manual key release (requires 3-of-5 Shamir fragments)
+  rpc SubmitShamirFragment(SubmitShamirFragmentRequest) returns (SubmitShamirFragmentResponse);
+  rpc EmergencyRelease(EmergencyReleaseRequest) returns (EmergencyReleaseResponse);
+
+  // TLP calibration
+  rpc GetTlpCalibration(GetTlpCalibrationRequest) returns (TlpCalibrationResponse);
+  rpc RunTlpBenchmark(RunTlpBenchmarkRequest) returns (RunTlpBenchmarkResponse);
+}
+
+// ── Messages ───────────────────────────────────────────────────────────
+
+message EncryptedBlob {
+  string uri = 1;              // GCS URI
+  string encrypted_dek = 2;   // DEK encrypted by Cloud KMS
+  string iv = 3;              // AES-GCM IV (base64)
+  string auth_tag = 4;        // AES-GCM auth tag (base64)
+  string plaintext_hash = 5;  // SHA-256 of plaintext
+  string encrypted_at = 6;
+}
+
+message TimeLockPuzzle {
+  string n = 1;      // RSA modulus (hex)
+  string a = 2;      // random base (hex)
+  string t = 3;      // sequential squarings count (decimal string)
+  string cipher = 4; // sealed key (hex)
+  string target_release_time = 5;
+  string created_at = 6;
+}
+
+message ShamirFragment {
+  string fragment_id = 1;
+  string exam_id = 2;
+  int32 share_index = 3;
+  string share_value = 4; // hex-encoded
+  string holder_id = 5;
+  string holder_role = 6;
+  bool submitted = 7;
+}
+
+message KeySchedule {
+  string exam_id = 1;
+  string kek_status = 2;         // "generated" | "distributed" | "released" | "destroyed"
+  int32 shamir_threshold = 3;
+  int32 shamir_total_shares = 4;
+  int32 fragments_submitted = 5;
+  string kms_key_version = 6;
+  bool tlp_generated = 7;
+  string scheduled_release_time = 8;
+  optional string actual_release_time = 9;
+  bool emergency_release = 10;
+  string retention_expires_at = 11;
+}
+
+message TlpCalibration {
+  string exam_id = 1;
+  int64 squarings_per_sec = 2;
+  string measured_on = 3;
+  int32 safety_margin_sec = 4;
+  string machine_type = 5;
+}
+
+// ── Request / Response ─────────────────────────────────────────────────
+
+message EncryptExamRequest {
+  string exam_id = 1;
+}
+
+message EncryptExamResponse {
+  string job_id = 1;
+  string status = 2; // "queued" | "encrypting"
+  int32 total_questions = 3;
+}
+
+message GetEncryptionStatusRequest {
+  string exam_id = 1;
+}
+
+message EncryptionStatusResponse {
+  string exam_id = 1;
+  string status = 2; // "pending" | "encrypting" | "encrypted" | "failed"
+  int32 questions_encrypted = 3;
+  int32 total_questions = 4;
+  bool tlp_generated = 5;
+  optional string error_message = 6;
+}
+
+message DistributeKeysRequest {
+  string exam_id = 1;
+  repeated string center_ids = 2;
+}
+
+message DistributeKeysResponse {
+  string exam_id = 1;
+  int32 centers_distributed = 2;
+  string status = 3;
+}
+
+message GetKeyStatusRequest {
+  string exam_id = 1;
+}
+
+message KeyStatusResponse {
+  KeySchedule key_schedule = 1;
+}
+
+message ReleaseKeysRequest {
+  string exam_id = 1;
+}
+
+message ReleaseKeysResponse {
+  string exam_id = 1;
+  bool success = 2;
+  int32 questions_decrypted = 3;
+  string released_at = 4;
+}
+
+message SubmitShamirFragmentRequest {
+  string exam_id = 1;
+  string holder_id = 2;
+  int32 share_index = 3;
+  string share_value = 4;
+}
+
+message SubmitShamirFragmentResponse {
+  string exam_id = 1;
+  int32 fragments_submitted = 2;
+  int32 threshold = 3;
+  bool threshold_met = 4;
+}
+
+message EmergencyReleaseRequest {
+  string exam_id = 1;
+  string reason = 2;
+  string authorized_by = 3;
+}
+
+message EmergencyReleaseResponse {
+  string exam_id = 1;
+  bool success = 2;
+  int32 questions_decrypted = 3;
+  string released_at = 4;
+  string blockchain_event_id = 5;
+}
+
+message GetTlpCalibrationRequest {
+  string exam_id = 1;
+}
+
+message TlpCalibrationResponse {
+  TlpCalibration calibration = 1;
+}
+
+message RunTlpBenchmarkRequest {
+  string machine_type = 1;
+  int32 modulus_bits = 2;
+}
+
+message RunTlpBenchmarkResponse {
+  int64 squarings_per_sec = 1;
+  string measured_on = 2;
+  string machine_type = 3;
+}

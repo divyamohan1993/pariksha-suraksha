@@ -1,0 +1,212 @@
+{{- if .Values.fabric.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-fabric-config
+  namespace: {{ .Values.namespaces.fabric }}
+  labels:
+    {{- include "pariksha.componentLabels" (dict "Chart" .Chart "Release" .Release "component" "fabric") | nindent 4 }}
+data:
+  configtx.yaml: |
+    Organizations:
+      - &ParikshaSurakshaOrg
+        Name: ParikshaSurakshaOrg
+        ID: ParikshaSurakshaMSP
+        MSPDir: crypto-config/peerOrganizations/pariksha.dmj.one/msp
+        Policies:
+          Readers:
+            Type: Signature
+            Rule: "OR('ParikshaSurakshaMSP.admin', 'ParikshaSurakshaMSP.peer', 'ParikshaSurakshaMSP.client')"
+          Writers:
+            Type: Signature
+            Rule: "OR('ParikshaSurakshaMSP.admin', 'ParikshaSurakshaMSP.client')"
+          Admins:
+            Type: Signature
+            Rule: "OR('ParikshaSurakshaMSP.admin')"
+          Endorsement:
+            Type: Signature
+            Rule: "OR('ParikshaSurakshaMSP.peer')"
+        AnchorPeers:
+          - Host: {{ .Release.Name }}-peer0-pariksha.{{ .Values.namespaces.fabric }}.svc.cluster.local
+            Port: 7051
+
+      - &NTAOrg
+        Name: NTAOrg
+        ID: NTAMSP
+        MSPDir: crypto-config/peerOrganizations/nta.pariksha.dmj.one/msp
+        Policies:
+          Readers:
+            Type: Signature
+            Rule: "OR('NTAMSP.admin', 'NTAMSP.peer', 'NTAMSP.client')"
+          Writers:
+            Type: Signature
+            Rule: "OR('NTAMSP.admin', 'NTAMSP.client')"
+          Admins:
+            Type: Signature
+            Rule: "OR('NTAMSP.admin')"
+          Endorsement:
+            Type: Signature
+            Rule: "OR('NTAMSP.peer')"
+        AnchorPeers:
+          - Host: {{ .Release.Name }}-peer0-nta.{{ .Values.namespaces.fabric }}.svc.cluster.local
+            Port: 7051
+
+      - &AuditorOrg
+        Name: AuditorOrg
+        ID: AuditorMSP
+        MSPDir: crypto-config/peerOrganizations/auditor.pariksha.dmj.one/msp
+        Policies:
+          Readers:
+            Type: Signature
+            Rule: "OR('AuditorMSP.admin', 'AuditorMSP.peer', 'AuditorMSP.client')"
+          Writers:
+            Type: Signature
+            Rule: "OR('AuditorMSP.admin', 'AuditorMSP.client')"
+          Admins:
+            Type: Signature
+            Rule: "OR('AuditorMSP.admin')"
+          Endorsement:
+            Type: Signature
+            Rule: "OR('AuditorMSP.peer')"
+        AnchorPeers:
+          - Host: {{ .Release.Name }}-peer0-auditor.{{ .Values.namespaces.fabric }}.svc.cluster.local
+            Port: 7051
+
+    Capabilities:
+      Channel: &ChannelCapabilities
+        V2_0: true
+      Orderer: &OrdererCapabilities
+        V2_0: true
+      Application: &ApplicationCapabilities
+        V2_0: true
+
+    Application: &ApplicationDefaults
+      Organizations:
+      Policies:
+        Readers:
+          Type: ImplicitMeta
+          Rule: "ANY Readers"
+        Writers:
+          Type: ImplicitMeta
+          Rule: "ANY Writers"
+        Admins:
+          Type: ImplicitMeta
+          Rule: "MAJORITY Admins"
+        LifecycleEndorsement:
+          Type: ImplicitMeta
+          Rule: "MAJORITY Endorsement"
+        Endorsement:
+          Type: ImplicitMeta
+          Rule: "MAJORITY Endorsement"
+      Capabilities:
+        <<: *ApplicationCapabilities
+
+    Orderer: &OrdererDefaults
+      OrdererType: etcdraft
+      BatchTimeout: {{ .Values.fabric.orderer.batchTimeout }}
+      BatchSize:
+        MaxMessageCount: {{ .Values.fabric.orderer.maxMessageCount }}
+        AbsoluteMaxBytes: {{ .Values.fabric.orderer.absoluteMaxBytes }}
+        PreferredMaxBytes: {{ .Values.fabric.orderer.preferredMaxBytes }}
+      EtcdRaft:
+        Consenters:
+          - Host: {{ .Release.Name }}-orderer0.{{ .Values.namespaces.fabric }}.svc.cluster.local
+            Port: 7050
+            ClientTLSCert: crypto-config/ordererOrganizations/pariksha.dmj.one/orderers/orderer0/tls/server.crt
+            ServerTLSCert: crypto-config/ordererOrganizations/pariksha.dmj.one/orderers/orderer0/tls/server.crt
+          - Host: {{ .Release.Name }}-orderer1.{{ .Values.namespaces.fabric }}.svc.cluster.local
+            Port: 7050
+            ClientTLSCert: crypto-config/ordererOrganizations/nta.pariksha.dmj.one/orderers/orderer1/tls/server.crt
+            ServerTLSCert: crypto-config/ordererOrganizations/nta.pariksha.dmj.one/orderers/orderer1/tls/server.crt
+          - Host: {{ .Release.Name }}-orderer2.{{ .Values.namespaces.fabric }}.svc.cluster.local
+            Port: 7050
+            ClientTLSCert: crypto-config/ordererOrganizations/auditor.pariksha.dmj.one/orderers/orderer2/tls/server.crt
+            ServerTLSCert: crypto-config/ordererOrganizations/auditor.pariksha.dmj.one/orderers/orderer2/tls/server.crt
+      Organizations:
+      Policies:
+        Readers:
+          Type: ImplicitMeta
+          Rule: "ANY Readers"
+        Writers:
+          Type: ImplicitMeta
+          Rule: "ANY Writers"
+        Admins:
+          Type: ImplicitMeta
+          Rule: "MAJORITY Admins"
+        BlockValidation:
+          Type: ImplicitMeta
+          Rule: "ANY Writers"
+      Capabilities:
+        <<: *OrdererCapabilities
+
+    Channel: &ChannelDefaults
+      Policies:
+        Readers:
+          Type: ImplicitMeta
+          Rule: "ANY Readers"
+        Writers:
+          Type: ImplicitMeta
+          Rule: "ANY Writers"
+        Admins:
+          Type: ImplicitMeta
+          Rule: "MAJORITY Admins"
+      Capabilities:
+        <<: *ChannelCapabilities
+
+    Profiles:
+      ExamLifecycleChannel:
+        <<: *ChannelDefaults
+        Orderer:
+          <<: *OrdererDefaults
+          Organizations:
+            - *ParikshaSurakshaOrg
+            - *NTAOrg
+            - *AuditorOrg
+        Application:
+          <<: *ApplicationDefaults
+          Organizations:
+            - *ParikshaSurakshaOrg
+            - *NTAOrg
+            - *AuditorOrg
+
+  crypto-config.yaml: |
+    OrdererOrgs:
+      - Name: ParikshaSurakshaOrderer
+        Domain: pariksha.dmj.one
+        EnableNodeOUs: true
+        Specs:
+          - Hostname: orderer0
+      - Name: NTAOrderer
+        Domain: nta.pariksha.dmj.one
+        EnableNodeOUs: true
+        Specs:
+          - Hostname: orderer1
+      - Name: AuditorOrderer
+        Domain: auditor.pariksha.dmj.one
+        EnableNodeOUs: true
+        Specs:
+          - Hostname: orderer2
+
+    PeerOrgs:
+      - Name: ParikshaSurakshaOrg
+        Domain: pariksha.dmj.one
+        EnableNodeOUs: true
+        Template:
+          Count: 2
+        Users:
+          Count: 1
+      - Name: NTAOrg
+        Domain: nta.pariksha.dmj.one
+        EnableNodeOUs: true
+        Template:
+          Count: 2
+        Users:
+          Count: 1
+      - Name: AuditorOrg
+        Domain: auditor.pariksha.dmj.one
+        EnableNodeOUs: true
+        Template:
+          Count: 1
+        Users:
+          Count: 1
+{{- end }}

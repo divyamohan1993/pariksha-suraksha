@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package blockchain;
+
+service BlockchainService {
+  rpc RecordEvent (RecordEventRequest) returns (RecordEventResponse);
+  rpc VerifyEvent (VerifyEventRequest) returns (VerifyEventResponse);
+  rpc GetEventsByExam (GetEventsByExamRequest) returns (GetEventsByExamResponse);
+}
+
+message RecordEventRequest {
+  string event_type = 1;
+  string exam_id = 2;
+  string entity_hash = 3;
+  string metadata_json = 4;
+  string actor_id = 5;
+  string actor_type = 6;
+}
+
+message RecordEventResponse {
+  string event_id = 1;
+  string tx_id = 2;
+  string timestamp = 3;
+  bool success = 4;
+}
+
+message VerifyEventRequest {
+  string event_id = 1;
+}
+
+message VerifyEventResponse {
+  bool verified = 1;
+  string event_json = 2;
+  string reason = 3;
+}
+
+message GetEventsByExamRequest {
+  string exam_id = 1;
+}
+
+message GetEventsByExamResponse {
+  repeated string events_json = 1;
+}

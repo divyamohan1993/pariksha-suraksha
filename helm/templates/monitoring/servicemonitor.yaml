@@ -1,0 +1,103 @@
+{{- if .Values.monitoring.enabled }}
+---
+# ServiceMonitor for backend API services
+{{- $apiServices := list "api-gateway" "question-service" "paper-generator" "crypto-lifecycle" "exam-session-service" "collusion-engine" "blockchain-service" }}
+{{- range $service := $apiServices }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ $.Release.Name }}-{{ $service }}
+  namespace: {{ $.Values.namespaces.api }}
+  labels:
+    {{- include "pariksha.componentLabels" (dict "Chart" $.Chart "Release" $.Release "component" $service) | nindent 4 }}
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      {{- include "pariksha.selectorLabels" (dict "Release" $.Release "component" $service) | nindent 6 }}
+  namespaceSelector:
+    matchNames:
+      - {{ $.Values.namespaces.api }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ $.Values.monitoring.serviceMonitor.interval }}
+      scrapeTimeout: {{ $.Values.monitoring.serviceMonitor.scrapeTimeout }}
+---
+{{- end }}
+# ServiceMonitor for frontend services
+{{- $webServices := list "admin-dashboard" "candidate-portal" }}
+{{- range $service := $webServices }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ $.Release.Name }}-{{ $service }}
+  namespace: {{ $.Values.namespaces.web }}
+  labels:
+    {{- include "pariksha.componentLabels" (dict "Chart" $.Chart "Release" $.Release "component" $service) | nindent 4 }}
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      {{- include "pariksha.selectorLabels" (dict "Release" $.Release "component" $service) | nindent 6 }}
+  namespaceSelector:
+    matchNames:
+      - {{ $.Values.namespaces.web }}
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ $.Values.monitoring.serviceMonitor.interval }}
+      scrapeTimeout: {{ $.Values.monitoring.serviceMonitor.scrapeTimeout }}
+---
+{{- end }}
+# ServiceMonitor for Fabric peers (Prometheus metrics from operations port)
+{{- if $.Values.fabric.enabled }}
+{{- $fabricOrgs := list "pariksha" "nta" "auditor" }}
+{{- range $org := $fabricOrgs }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ $.Release.Name }}-peer-{{ $org }}
+  namespace: {{ $.Values.namespaces.fabric }}
+  labels:
+    {{- include "pariksha.componentLabels" (dict "Chart" $.Chart "Release" $.Release "component" (printf "peer-%s" $org)) | nindent 4 }}
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      {{- include "pariksha.selectorLabels" (dict "Release" $.Release "component" (printf "peer-%s" $org)) | nindent 6 }}
+  namespaceSelector:
+    matchNames:
+      - {{ $.Values.namespaces.fabric }}
+  endpoints:
+    - port: operations
+      path: /metrics
+      interval: {{ $.Values.monitoring.serviceMonitor.interval }}
+      scrapeTimeout: {{ $.Values.monitoring.serviceMonitor.scrapeTimeout }}
+---
+{{- end }}
+{{- range $i := list 0 1 2 }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ $.Release.Name }}-orderer{{ $i }}
+  namespace: {{ $.Values.namespaces.fabric }}
+  labels:
+    {{- include "pariksha.componentLabels" (dict "Chart" $.Chart "Release" $.Release "component" (printf "orderer%d" (int $i))) | nindent 4 }}
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      {{- include "pariksha.selectorLabels" (dict "Release" $.Release "component" (printf "orderer%d" (int $i))) | nindent 6 }}
+  namespaceSelector:
+    matchNames:
+      - {{ $.Values.namespaces.fabric }}
+  endpoints:
+    - port: operations
+      path: /metrics
+      interval: {{ $.Values.monitoring.serviceMonitor.interval }}
+      scrapeTimeout: {{ $.Values.monitoring.serviceMonitor.scrapeTimeout }}
+---
+{{- end }}
+{{- end }}
+{{- end }}

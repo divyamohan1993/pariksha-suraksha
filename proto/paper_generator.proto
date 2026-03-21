@@ -1,0 +1,131 @@
+syntax = "proto3";
+
+package pariksha.paper;
+
+option go_package = "pariksha/paper";
+
+// ────────────────────────────────────────────────────────────────────────
+// Paper Generator Service — Matrix solver orchestration, O(1) paper lookup
+// ────────────────────────────────────────────────────────────────────────
+
+service PaperGeneratorService {
+  // Matrix generation (triggers Python worker via Pub/Sub)
+  rpc GenerateMatrix(GenerateMatrixRequest) returns (GenerateMatrixResponse);
+  rpc GetMatrixStatus(GetMatrixStatusRequest) returns (MatrixStatusResponse);
+
+  // O(1) paper lookup — single Redis GET for the pre-rendered paper
+  rpc GetPaper(GetPaperRequest) returns (GetPaperResponse);
+
+  // Blueprint management
+  rpc SetBlueprint(SetBlueprintRequest) returns (SetBlueprintResponse);
+  rpc GetBlueprint(GetBlueprintRequest) returns (GetBlueprintResponse);
+}
+
+// ── Messages ───────────────────────────────────────────────────────────
+
+message DifficultyDistribution {
+  int32 easy = 1;
+  int32 medium = 2;
+  int32 hard = 3;
+}
+
+message TopicCoverageEntry {
+  string topic = 1;
+  optional string subtopic = 2;
+  int32 question_count = 3;
+  repeated string bloom_levels = 4;
+}
+
+message ExamBlueprint {
+  string exam_id = 1;
+  DifficultyDistribution difficulty_distribution = 2;
+  repeated TopicCoverageEntry topic_coverage = 3;
+  int32 questions_per_paper = 4;
+  double max_neighbor_overlap = 5;
+  double max_cross_center_overlap = 6;
+}
+
+message QuestionAssignment {
+  int32 position = 1;
+  string template_id = 2;
+  string param_instantiation_id = 3;
+  string encrypted_blob_uri = 4;
+  string encrypted_answer_key = 5;
+}
+
+message AssignmentEntry {
+  string center_id = 1;
+  int32 seat_num = 2;
+  repeated QuestionAssignment question_assignments = 3;
+  double difficulty_sum = 4;
+  string topic_coverage_hash = 5;
+}
+
+message RenderedQuestion {
+  int32 position = 1;
+  string rendered_text = 2; // fully rendered with parameter values substituted
+  repeated string choices = 3; // ["A: ...", "B: ...", "C: ...", "D: ..."]
+}
+
+message RenderedPaper {
+  string exam_id = 1;
+  string center_id = 2;
+  int32 seat_num = 3;
+  repeated RenderedQuestion questions = 4;
+  int32 duration_minutes = 5;
+  string paper_hash = 6; // SHA-256 of the rendered paper for audit
+}
+
+// ── Request / Response ─────────────────────────────────────────────────
+
+message GenerateMatrixRequest {
+  string exam_id = 1;
+}
+
+message GenerateMatrixResponse {
+  string job_id = 1;
+  string status = 2; // "queued"
+}
+
+message GetMatrixStatusRequest {
+  string exam_id = 1;
+}
+
+message MatrixStatusResponse {
+  string exam_id = 1;
+  string status = 2; // "queued" | "running" | "completed" | "failed"
+  double percent_complete = 3;
+  int32 centers_processed = 4;
+  int32 total_centers = 5;
+  optional double current_energy = 6;
+  optional int32 constraint_violations = 7;
+  optional string error_message = 8;
+}
+
+message GetPaperRequest {
+  string exam_id = 1;
+  string center_id = 2;
+  int32 seat_num = 3;
+}
+
+message GetPaperResponse {
+  RenderedPaper paper = 1;
+}
+
+message SetBlueprintRequest {
+  ExamBlueprint blueprint = 1;
+}
+
+message SetBlueprintResponse {
+  string exam_id = 1;
+  bool accepted = 2;
+  optional string validation_error = 3;
+}
+
+message GetBlueprintRequest {
+  string exam_id = 1;
+}
+
+message GetBlueprintResponse {
+  ExamBlueprint blueprint = 1;
+}

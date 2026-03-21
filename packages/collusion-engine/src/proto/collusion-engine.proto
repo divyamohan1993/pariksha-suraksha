@@ -1,0 +1,125 @@
+syntax = "proto3";
+
+package collusion_engine;
+
+service CollusionEngineService {
+  rpc RunCollusionDetection (RunCollusionDetectionRequest) returns (RunCollusionDetectionResponse);
+  rpc GetCollusionStatus (GetCollusionStatusRequest) returns (GetCollusionStatusResponse);
+  rpc GetResults (GetResultsRequest) returns (GetResultsResponse);
+  rpc GetResultsForCenter (GetResultsForCenterRequest) returns (GetResultsForCenterResponse);
+  rpc GetPairEvidence (GetPairEvidenceRequest) returns (GetPairEvidenceResponse);
+  rpc GetClusters (GetClustersRequest) returns (GetClustersResponse);
+}
+
+message RunCollusionDetectionRequest {
+  string exam_id = 1;
+}
+
+message RunCollusionDetectionResponse {
+  string exam_id = 1;
+  int32 jobs_published = 2;
+  string triggered_at = 3;
+}
+
+message GetCollusionStatusRequest {
+  string exam_id = 1;
+}
+
+message CenterJobStatus {
+  string center_id = 1;
+  string status = 2;
+  string started_at = 3;
+  string completed_at = 4;
+  string error_message = 5;
+}
+
+message GetCollusionStatusResponse {
+  string exam_id = 1;
+  string overall_status = 2;
+  int32 total_centers = 3;
+  int32 completed_centers = 4;
+  int32 failed_centers = 5;
+  repeated CenterJobStatus center_statuses = 6;
+}
+
+message GetResultsRequest {
+  string exam_id = 1;
+}
+
+message CollusionPairProto {
+  string pair_id = 1;
+  string candidate_u = 2;
+  string candidate_v = 3;
+  string center_id = 4;
+  double log_lambda = 5;
+  double threshold = 6;
+  bool flagged = 7;
+}
+
+message GetResultsResponse {
+  string exam_id = 1;
+  int32 total_flagged_pairs = 2;
+  repeated CollusionPairProto flagged_pairs = 3;
+}
+
+message GetResultsForCenterRequest {
+  string exam_id = 1;
+  string center_id = 2;
+}
+
+message GetResultsForCenterResponse {
+  string exam_id = 1;
+  string center_id = 2;
+  int32 total_pairs_analyzed = 3;
+  int32 flagged_pair_count = 4;
+  repeated CollusionPairProto flagged_pairs = 5;
+}
+
+message QuestionEvidenceProto {
+  int32 question_position = 1;
+  string template_id = 2;
+  string response_u = 3;
+  string response_v = 4;
+  string correct_answer = 5;
+  string match_type = 6;
+  double log_lambda_contribution = 7;
+}
+
+message GetPairEvidenceRequest {
+  string exam_id = 1;
+  string pair_id = 2;
+}
+
+message GetPairEvidenceResponse {
+  string pair_id = 1;
+  string candidate_u = 2;
+  string candidate_v = 3;
+  string center_id = 4;
+  double log_lambda = 5;
+  double threshold = 6;
+  bool flagged = 7;
+  int32 shared_question_count = 8;
+  int32 same_wrong_count = 9;
+  int32 different_wrong_count = 10;
+  string seating_proximity = 11;
+  repeated QuestionEvidenceProto question_details = 12;
+  string evidence_report_uri = 13;
+}
+
+message CollusionClusterProto {
+  string cluster_id = 1;
+  string center_id = 2;
+  repeated string candidate_ids = 3;
+  repeated string pair_ids = 4;
+  double max_log_lambda = 5;
+  double average_log_lambda = 6;
+}
+
+message GetClustersRequest {
+  string exam_id = 1;
+}
+
+message GetClustersResponse {
+  string exam_id = 1;
+  repeated CollusionClusterProto clusters = 2;
+}

@@ -1,0 +1,238 @@
+{{- if .Values.fabric.enabled }}
+{{- $root := . }}
+{{- $orgConfigs := dict "pariksha" (dict "mspId" "ParikshaSurakshaMSP" "domain" "pariksha.dmj.one" "peerCount" (index .Values.fabric.organizations 0).peerCount) "nta" (dict "mspId" "NTAMSP" "domain" "nta.pariksha.dmj.one" "peerCount" (index .Values.fabric.organizations 1).peerCount) "auditor" (dict "mspId" "AuditorMSP" "domain" "auditor.pariksha.dmj.one" "peerCount" (index .Values.fabric.organizations 2).peerCount) }}
+{{- range $orgShort, $orgConfig := $orgConfigs }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $root.Release.Name }}-peer-{{ $orgShort }}
+  namespace: {{ $root.Values.namespaces.fabric }}
+  labels:
+    {{- include "pariksha.componentLabels" (dict "Chart" $root.Chart "Release" $root.Release "component" (printf "peer-%s" $orgShort)) | nindent 4 }}
+spec:
+  serviceName: {{ $root.Release.Name }}-peer-{{ $orgShort }}
+  replicas: {{ $orgConfig.peerCount }}
+  selector:
+    matchLabels:
+      {{- include "pariksha.selectorLabels" (dict "Release" $root.Release "component" (printf "peer-%s" $orgShort)) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pariksha.componentLabels" (dict "Chart" $root.Chart "Release" $root.Release "component" (printf "peer-%s" $orgShort)) | nindent 8 }}
+        fabric-role: peer
+        fabric-org: {{ $orgShort }}
+    spec:
+      {{- with $root.Values.fabric.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.fabric.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                labelSelector:
+                  matchExpressions:
+                    - key: fabric-role
+                      operator: In
+                      values:
+                        - peer
+                topologyKey: kubernetes.io/hostname
+      containers:
+        - name: peer
+          image: {{ $root.Values.fabric.peerImage }}
+          imagePullPolicy: {{ $root.Values.global.image.pullPolicy }}
+          ports:
+            - name: peer
+              containerPort: 7051
+              protocol: TCP
+            - name: chaincode
+              containerPort: 7052
+              protocol: TCP
+            - name: events
+              containerPort: 7053
+              protocol: TCP
+            - name: operations
+              containerPort: 9443
+              protocol: TCP
+          env:
+            - name: CORE_PEER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: CORE_PEER_ADDRESS
+              value: "0.0.0.0:7051"
+            - name: CORE_PEER_LISTENADDRESS
+              value: "0.0.0.0:7051"
+            - name: CORE_PEER_CHAINCODEADDRESS
+              value: "0.0.0.0:7052"
+            - name: CORE_PEER_CHAINCODELISTENADDRESS
+              value: "0.0.0.0:7052"
+            - name: CORE_PEER_GOSSIP_BOOTSTRAP
+              value: "{{ $root.Release.Name }}-peer-{{ $orgShort }}-0.{{ $root.Release.Name }}-peer-{{ $orgShort }}.{{ $root.Values.namespaces.fabric }}.svc.cluster.local:7051"
+            - name: CORE_PEER_GOSSIP_EXTERNALENDPOINT
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: CORE_PEER_LOCALMSPID
+              value: {{ $orgConfig.mspId }}
+            - name: CORE_PEER_TLS_ENABLED
+              value: "true"
+            - name: CORE_PEER_TLS_CERT_FILE
+              value: "/etc/hyperledger/fabric/tls/server.crt"
+            - name: CORE_PEER_TLS_KEY_FILE
+              value: "/etc/hyperledger/fabric/tls/server.key"
+            - name: CORE_PEER_TLS_ROOTCERT_FILE
+              value: "/etc/hyperledger/fabric/tls/ca.crt"
+            - name: CORE_PEER_MSPCONFIGPATH
+              value: "/etc/hyperledger/fabric/msp"
+            - name: CORE_LEDGER_STATE_STATEDATABASE
+              value: "CouchDB"
+            - name: CORE_LEDGER_STATE_COUCHDBCONFIG_COUCHDBADDRESS
+              value: "localhost:5984"
+            - name: CORE_LEDGER_STATE_COUCHDBCONFIG_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $root.Release.Name }}-couchdb-secrets
+                  key: username
+                  optional: true
+            - name: CORE_LEDGER_STATE_COUCHDBCONFIG_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $root.Release.Name }}-couchdb-secrets
+                  key: password
+                  optional: true
+            - name: CORE_OPERATIONS_LISTENADDRESS
+              value: "0.0.0.0:9443"
+            - name: CORE_METRICS_PROVIDER
+              value: "prometheus"
+            - name: FABRIC_LOGGING_SPEC
+              value: "INFO"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: operations
+            initialDelaySeconds: 60
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: operations
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              cpu: 2000m
+              memory: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: false
+          volumeMounts:
+            - name: peer-data
+              mountPath: /var/hyperledger/production
+            - name: fabric-crypto
+              mountPath: /etc/hyperledger/fabric
+              readOnly: true
+        - name: couchdb
+          image: {{ $root.Values.fabric.couchdbImage }}
+          ports:
+            - name: couchdb
+              containerPort: 5984
+              protocol: TCP
+          env:
+            - name: COUCHDB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $root.Release.Name }}-couchdb-secrets
+                  key: username
+                  optional: true
+            - name: COUCHDB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $root.Release.Name }}-couchdb-secrets
+                  key: password
+                  optional: true
+          livenessProbe:
+            httpGet:
+              path: /_up
+              port: couchdb
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          volumeMounts:
+            - name: couchdb-data
+              mountPath: /opt/couchdb/data
+      volumes:
+        - name: fabric-crypto
+          secret:
+            secretName: {{ $root.Release.Name }}-fabric-crypto-{{ $orgShort }}
+            optional: true
+  volumeClaimTemplates:
+    - metadata:
+        name: peer-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        {{- if $root.Values.fabric.persistence.storageClass }}
+        storageClassName: {{ $root.Values.fabric.persistence.storageClass }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $root.Values.fabric.persistence.peerSize }}
+    - metadata:
+        name: couchdb-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        {{- if $root.Values.fabric.persistence.storageClass }}
+        storageClassName: {{ $root.Values.fabric.persistence.storageClass }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $root.Values.fabric.persistence.couchdbSize }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $root.Release.Name }}-peer-{{ $orgShort }}
+  namespace: {{ $root.Values.namespaces.fabric }}
+  labels:
+    {{- include "pariksha.componentLabels" (dict "Chart" $root.Chart "Release" $root.Release "component" (printf "peer-%s" $orgShort)) | nindent 4 }}
+spec:
+  type: ClusterIP
+  clusterIP: None
+  ports:
+    - name: peer
+      port: 7051
+      targetPort: peer
+      protocol: TCP
+    - name: chaincode
+      port: 7052
+      targetPort: chaincode
+      protocol: TCP
+    - name: events
+      port: 7053
+      targetPort: events
+      protocol: TCP
+    - name: operations
+      port: 9443
+      targetPort: operations
+      protocol: TCP
+  selector:
+    {{- include "pariksha.selectorLabels" (dict "Release" $root.Release "component" (printf "peer-%s" $orgShort)) | nindent 4 }}
+---
+{{- end }}
+{{- end }}

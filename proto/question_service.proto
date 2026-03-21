@@ -1,0 +1,213 @@
+syntax = "proto3";
+
+package pariksha.question;
+
+option go_package = "pariksha/question";
+
+// ────────────────────────────────────────────────────────────────────────
+// Question Service — Template CRUD, Gemini generation, field test ingestion
+// ────────────────────────────────────────────────────────────────────────
+
+service QuestionService {
+  // Template CRUD
+  rpc CreateTemplate(CreateTemplateRequest) returns (QuestionTemplateResponse);
+  rpc GetTemplate(GetTemplateRequest) returns (QuestionTemplateResponse);
+  rpc UpdateTemplate(UpdateTemplateRequest) returns (QuestionTemplateResponse);
+  rpc ListTemplates(ListTemplatesRequest) returns (ListTemplatesResponse);
+
+  // Gemini-based generation
+  rpc GenerateTemplate(GenerateTemplateRequest) returns (GenerateTemplateResponse);
+
+  // Parameter instantiation
+  rpc CreateInstantiation(CreateInstantiationRequest) returns (ParameterInstantiationResponse);
+  rpc ListInstantiations(ListInstantiationsRequest) returns (ListInstantiationsResponse);
+
+  // Field test data ingestion
+  rpc IngestFieldTestData(IngestFieldTestDataRequest) returns (IngestFieldTestDataResponse);
+
+  // IRT calibration trigger
+  rpc TriggerCalibration(TriggerCalibrationRequest) returns (TriggerCalibrationResponse);
+}
+
+// ── Enums ──────────────────────────────────────────────────────────────
+
+enum BloomLevel {
+  BLOOM_LEVEL_UNSPECIFIED = 0;
+  REMEMBER = 1;
+  UNDERSTAND = 2;
+  APPLY = 3;
+  ANALYZE = 4;
+  EVALUATE = 5;
+  CREATE = 6;
+}
+
+enum QuestionTemplateStatus {
+  QUESTION_TEMPLATE_STATUS_UNSPECIFIED = 0;
+  DRAFT = 1;
+  PENDING_REVIEW = 2;
+  FIELD_TESTING = 3;
+  CALIBRATED = 4;
+  PRODUCTION = 5;
+  RETIRED = 6;
+}
+
+// ── Messages ───────────────────────────────────────────────────────────
+
+message IRTParameters {
+  double a = 1;
+  double b = 2;
+  double c = 3;
+}
+
+message IRTParameterStats {
+  double a_mean = 1;
+  double a_std = 2;
+  double b_mean = 3;
+  double b_std = 4;
+  double c_mean = 5;
+  double c_std = 6;
+}
+
+message DistractorProfile {
+  // Map from choice label (e.g. "A","B","C","D") to selection probability
+  map<string, double> probabilities = 1;
+}
+
+message TemplateParameter {
+  string name = 1;
+  string type = 2; // "integer" | "float" | "string"
+  optional double min = 3;
+  optional double max = 4;
+  repeated string allowed_values = 5;
+}
+
+message DistractorDefinition {
+  string label = 1;
+  string formula = 2;
+  optional string explanation = 3;
+}
+
+message QuestionTemplate {
+  string id = 1;
+  string subject = 2;
+  string topic = 3;
+  string subtopic = 4;
+  BloomLevel bloom_level = 5;
+  string template_text = 6;
+  repeated TemplateParameter parameters = 7;
+  string answer_formula = 8;
+  repeated DistractorDefinition distractors = 9;
+  IRTParameterStats irt_stats = 10;
+  int32 field_test_count = 11;
+  string calibration_date = 12;
+  QuestionTemplateStatus status = 13;
+  string created_at = 14;
+  string updated_at = 15;
+}
+
+message ParameterInstantiation {
+  string id = 1;
+  string template_id = 2;
+  map<string, string> params = 3;
+  IRTParameters irt = 4;
+  DistractorProfile distractor_profile = 5;
+}
+
+// ── Request / Response ─────────────────────────────────────────────────
+
+message CreateTemplateRequest {
+  string subject = 1;
+  string topic = 2;
+  string subtopic = 3;
+  BloomLevel bloom_level = 4;
+  string template_text = 5;
+  repeated TemplateParameter parameters = 6;
+  string answer_formula = 7;
+  repeated DistractorDefinition distractors = 8;
+}
+
+message GetTemplateRequest {
+  string template_id = 1;
+}
+
+message UpdateTemplateRequest {
+  string template_id = 1;
+  optional string template_text = 2;
+  repeated TemplateParameter parameters = 3;
+  optional string answer_formula = 4;
+  repeated DistractorDefinition distractors = 5;
+  optional QuestionTemplateStatus status = 6;
+}
+
+message QuestionTemplateResponse {
+  QuestionTemplate template = 1;
+}
+
+message ListTemplatesRequest {
+  optional string subject = 1;
+  optional string topic = 2;
+  optional BloomLevel bloom_level = 3;
+  optional QuestionTemplateStatus status = 4;
+  int32 page_size = 5;
+  string page_token = 6;
+}
+
+message ListTemplatesResponse {
+  repeated QuestionTemplate templates = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+message GenerateTemplateRequest {
+  string subject = 1;
+  string topic = 2;
+  string subtopic = 3;
+  BloomLevel bloom_level = 4;
+  optional string example_template = 5;
+}
+
+message GenerateTemplateResponse {
+  string template_text = 1;
+  repeated TemplateParameter parameters = 2;
+  string answer_formula = 3;
+  repeated DistractorDefinition distractors = 4;
+}
+
+message CreateInstantiationRequest {
+  string template_id = 1;
+  map<string, string> params = 2;
+}
+
+message ParameterInstantiationResponse {
+  ParameterInstantiation instantiation = 1;
+}
+
+message ListInstantiationsRequest {
+  string template_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+}
+
+message ListInstantiationsResponse {
+  repeated ParameterInstantiation instantiations = 1;
+  string next_page_token = 2;
+}
+
+message IngestFieldTestDataRequest {
+  string template_id = 1;
+  string gcs_csv_uri = 2; // gs://pariksha-field-test-data/{file}.csv
+}
+
+message IngestFieldTestDataResponse {
+  int32 rows_ingested = 1;
+  string job_id = 2;
+}
+
+message TriggerCalibrationRequest {
+  string template_id = 1;
+}
+
+message TriggerCalibrationResponse {
+  string job_id = 1;
+  string status = 2; // "queued" | "running"
+}

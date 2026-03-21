@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package papergenerator;
+
+service PaperGeneratorService {
+  rpc PreWarmCache (PreWarmCacheRequest) returns (PreWarmCacheResponse);
+  rpc GetPaper (GetPaperRequest) returns (GetPaperResponse);
+}
+
+message PreWarmCacheRequest {
+  string exam_id = 1;
+}
+
+message PreWarmCacheResponse {
+  bool success = 1;
+  int32 papers_cached = 2;
+  string message = 3;
+}
+
+message GetPaperRequest {
+  string exam_id = 1;
+  string center_id = 2;
+  string seat_num = 3;
+}
+
+message GetPaperResponse {
+  string paper_json = 1;
+  bool success = 2;
+}

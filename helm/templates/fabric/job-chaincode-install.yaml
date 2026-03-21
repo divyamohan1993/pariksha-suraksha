@@ -1,0 +1,172 @@
+{{- if .Values.fabric.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Release.Name }}-chaincode-install
+  namespace: {{ .Values.namespaces.fabric }}
+  labels:
+    {{- include "pariksha.componentLabels" (dict "Chart" .Chart "Release" .Release "component" "chaincode-install") | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "10"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 3
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        {{- include "pariksha.componentLabels" (dict "Chart" .Chart "Release" .Release "component" "chaincode-install") | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      {{- with .Values.fabric.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.fabric.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: chaincode-install
+          image: {{ .Values.fabric.toolsImage }}
+          imagePullPolicy: {{ .Values.global.image.pullPolicy }}
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+
+              echo "=== Waiting for peers to be ready ==="
+              for i in $(seq 1 60); do
+                if peer channel list 2>/dev/null; then
+                  echo "Peer is ready"
+                  break
+                fi
+                echo "Waiting for peer... ($i/60)"
+                sleep 5
+              done
+
+              echo "=== Creating channel: {{ .Values.fabric.channelName }} ==="
+              peer channel create \
+                -o {{ .Release.Name }}-orderer0.{{ .Values.namespaces.fabric }}.svc.cluster.local:7050 \
+                -c {{ .Values.fabric.channelName }} \
+                -f /etc/hyperledger/fabric/channel-artifacts/channel.tx \
+                --tls \
+                --cafile /etc/hyperledger/fabric/tls/ca.crt \
+                --outputBlock /tmp/{{ .Values.fabric.channelName }}.block || echo "Channel may already exist"
+
+              echo "=== Joining peers to channel ==="
+              peer channel join -b /tmp/{{ .Values.fabric.channelName }}.block || echo "Peer may already be joined"
+
+              echo "=== Packaging chaincode: {{ .Values.fabric.chaincodeName }} ==="
+              peer lifecycle chaincode package /tmp/{{ .Values.fabric.chaincodeName }}.tar.gz \
+                --path /opt/gopath/src/chaincode/{{ .Values.fabric.chaincodeName }} \
+                --lang node \
+                --label {{ .Values.fabric.chaincodeName }}_{{ .Values.fabric.chaincodeVersion }}
+
+              echo "=== Installing chaincode on peer ==="
+              peer lifecycle chaincode install /tmp/{{ .Values.fabric.chaincodeName }}.tar.gz
+
+              echo "=== Getting package ID ==="
+              PACKAGE_ID=$(peer lifecycle chaincode queryinstalled 2>&1 | grep "{{ .Values.fabric.chaincodeName }}_{{ .Values.fabric.chaincodeVersion }}" | awk '{print $3}' | sed 's/,$//')
+              echo "Package ID: ${PACKAGE_ID}"
+
+              echo "=== Approving chaincode for ParikshaSurakshaMSP ==="
+              peer lifecycle chaincode approveformyorg \
+                -o {{ .Release.Name }}-orderer0.{{ .Values.namespaces.fabric }}.svc.cluster.local:7050 \
+                --tls \
+                --cafile /etc/hyperledger/fabric/tls/ca.crt \
+                --channelID {{ .Values.fabric.channelName }} \
+                --name {{ .Values.fabric.chaincodeName }} \
+                --version {{ .Values.fabric.chaincodeVersion }} \
+                --package-id ${PACKAGE_ID} \
+                --sequence 1 \
+                --signature-policy "AND('ParikshaSurakshaMSP.peer','NTAMSP.peer')" \
+                --init-required=false
+
+              echo "=== Checking commit readiness ==="
+              peer lifecycle chaincode checkcommitreadiness \
+                --channelID {{ .Values.fabric.channelName }} \
+                --name {{ .Values.fabric.chaincodeName }} \
+                --version {{ .Values.fabric.chaincodeVersion }} \
+                --sequence 1 \
+                --signature-policy "AND('ParikshaSurakshaMSP.peer','NTAMSP.peer')" \
+                --output json
+
+              echo "=== Committing chaincode ==="
+              peer lifecycle chaincode commit \
+                -o {{ .Release.Name }}-orderer0.{{ .Values.namespaces.fabric }}.svc.cluster.local:7050 \
+                --tls \
+                --cafile /etc/hyperledger/fabric/tls/ca.crt \
+                --channelID {{ .Values.fabric.channelName }} \
+                --name {{ .Values.fabric.chaincodeName }} \
+                --version {{ .Values.fabric.chaincodeVersion }} \
+                --sequence 1 \
+                --signature-policy "AND('ParikshaSurakshaMSP.peer','NTAMSP.peer')" \
+                --peerAddresses {{ .Release.Name }}-peer-pariksha-0.{{ .Release.Name }}-peer-pariksha.{{ .Values.namespaces.fabric }}.svc.cluster.local:7051 \
+                --tlsRootCertFiles /etc/hyperledger/fabric/tls/ca.crt \
+                --peerAddresses {{ .Release.Name }}-peer-nta-0.{{ .Release.Name }}-peer-nta.{{ .Values.namespaces.fabric }}.svc.cluster.local:7051 \
+                --tlsRootCertFiles /etc/hyperledger/fabric/tls-nta/ca.crt \
+                || echo "Chaincode may already be committed"
+
+              echo "=== Chaincode installation complete ==="
+              peer lifecycle chaincode querycommitted \
+                --channelID {{ .Values.fabric.channelName }} \
+                --name {{ .Values.fabric.chaincodeName }}
+          env:
+            - name: CORE_PEER_ADDRESS
+              value: "{{ .Release.Name }}-peer-pariksha-0.{{ .Release.Name }}-peer-pariksha.{{ .Values.namespaces.fabric }}.svc.cluster.local:7051"
+            - name: CORE_PEER_LOCALMSPID
+              value: "ParikshaSurakshaMSP"
+            - name: CORE_PEER_TLS_ENABLED
+              value: "true"
+            - name: CORE_PEER_TLS_ROOTCERT_FILE
+              value: "/etc/hyperledger/fabric/tls/ca.crt"
+            - name: CORE_PEER_MSPCONFIGPATH
+              value: "/etc/hyperledger/fabric/msp"
+            - name: GOPATH
+              value: "/opt/gopath"
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
+          volumeMounts:
+            - name: fabric-crypto
+              mountPath: /etc/hyperledger/fabric
+              readOnly: true
+            - name: fabric-crypto-nta
+              mountPath: /etc/hyperledger/fabric/tls-nta
+              readOnly: true
+            - name: chaincode-source
+              mountPath: /opt/gopath/src/chaincode
+              readOnly: true
+            - name: channel-artifacts
+              mountPath: /etc/hyperledger/fabric/channel-artifacts
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: fabric-crypto
+          secret:
+            secretName: {{ .Release.Name }}-fabric-crypto-pariksha
+            optional: true
+        - name: fabric-crypto-nta
+          secret:
+            secretName: {{ .Release.Name }}-fabric-crypto-nta
+            optional: true
+        - name: chaincode-source
+          configMap:
+            name: {{ .Release.Name }}-chaincode-source
+            optional: true
+        - name: channel-artifacts
+          configMap:
+            name: {{ .Release.Name }}-channel-artifacts
+            optional: true
+        - name: tmp
+          emptyDir:
+            sizeLimit: 500Mi
+{{- end }}

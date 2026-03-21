@@ -1,0 +1,49 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+*.js.map
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/tfplan
+terraform/.terraform.lock.hcl
+
+# Docker
+*.log
+
+# Test
+coverage/
+.pytest_cache/
+.nyc_output/
+
+# Secrets (NEVER commit)
+*.pem
+*.key
+*credentials*.json
+*service-account*.json

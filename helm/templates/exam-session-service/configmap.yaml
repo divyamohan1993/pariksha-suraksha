@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-exam-session-service-config
+  namespace: {{ .Values.namespaces.api }}
+  labels:
+    {{- include "pariksha.componentLabels" (dict "Chart" .Chart "Release" .Release "component" "exam-session-service") | nindent 4 }}
+data:
+  NODE_ENV: {{ .Values.global.environment }}
+  PORT: {{ .Values.examSessionService.port | quote }}
+  GRPC_PORT: {{ .Values.examSessionService.grpcPort | quote }}
+  GCP_PROJECT_ID: {{ .Values.global.gcpProjectId }}
+  REDIS_HOST: {{ .Values.redis.host | quote }}
+  REDIS_PORT: {{ .Values.redis.port | quote }}
+  FIRESTORE_DATABASE: {{ .Values.global.firestoreDatabase }}
+  GCS_BUCKET_ENCRYPTED: {{ .Values.global.gcsBucketEncrypted }}
+  PAPER_GENERATOR_URL: "{{ .Release.Name }}-paper-generator.{{ .Values.namespaces.api }}.svc.cluster.local:{{ .Values.paperGenerator.grpcPort }}"
+  CRYPTO_LIFECYCLE_URL: "{{ .Release.Name }}-crypto-lifecycle.{{ .Values.namespaces.api }}.svc.cluster.local:{{ .Values.cryptoLifecycle.grpcPort }}"
+  BLOCKCHAIN_SERVICE_URL: "{{ .Release.Name }}-blockchain-service.{{ .Values.namespaces.api }}.svc.cluster.local:{{ .Values.blockchainService.grpcPort }}"
+  LOG_LEVEL: "info"

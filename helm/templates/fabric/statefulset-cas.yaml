@@ -1,0 +1,140 @@
+{{- if .Values.fabric.enabled }}
+{{- $root := . }}
+{{- $cas := list (dict "index" 0 "orgShort" "pariksha" "orgName" "ParikshaSurakshaOrg" "domain" "pariksha.dmj.one") (dict "index" 1 "orgShort" "nta" "orgName" "NTAOrg" "domain" "nta.pariksha.dmj.one") (dict "index" 2 "orgShort" "auditor" "orgName" "AuditorOrg" "domain" "auditor.pariksha.dmj.one") }}
+{{- range $ca := $cas }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $root.Release.Name }}-ca-{{ $ca.orgShort }}
+  namespace: {{ $root.Values.namespaces.fabric }}
+  labels:
+    {{- include "pariksha.componentLabels" (dict "Chart" $root.Chart "Release" $root.Release "component" (printf "ca-%s" $ca.orgShort)) | nindent 4 }}
+spec:
+  serviceName: {{ $root.Release.Name }}-ca-{{ $ca.orgShort }}
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "pariksha.selectorLabels" (dict "Release" $root.Release "component" (printf "ca-%s" $ca.orgShort)) | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "pariksha.componentLabels" (dict "Chart" $root.Chart "Release" $root.Release "component" (printf "ca-%s" $ca.orgShort)) | nindent 8 }}
+        fabric-role: ca
+        fabric-org: {{ $ca.orgShort }}
+    spec:
+      {{- with $root.Values.fabric.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with $root.Values.fabric.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: ca
+          image: {{ $root.Values.fabric.caImage }}
+          imagePullPolicy: {{ $root.Values.global.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - fabric-ca-server start -b admin:adminpw -d
+          ports:
+            - name: ca
+              containerPort: 7054
+              protocol: TCP
+            - name: operations
+              containerPort: 9443
+              protocol: TCP
+          env:
+            - name: FABRIC_CA_HOME
+              value: "/etc/hyperledger/fabric-ca-server"
+            - name: FABRIC_CA_SERVER_CA_NAME
+              value: "ca-{{ $ca.orgShort }}"
+            - name: FABRIC_CA_SERVER_TLS_ENABLED
+              value: "true"
+            - name: FABRIC_CA_SERVER_TLS_CERTFILE
+              value: "/etc/hyperledger/fabric-ca-server-config/tls-cert.pem"
+            - name: FABRIC_CA_SERVER_TLS_KEYFILE
+              value: "/etc/hyperledger/fabric-ca-server-config/tls-key.pem"
+            - name: FABRIC_CA_SERVER_CSR_CN
+              value: "ca-{{ $ca.orgShort }}"
+            - name: FABRIC_CA_SERVER_CSR_HOSTS
+              value: "{{ $root.Release.Name }}-ca-{{ $ca.orgShort }}.{{ $root.Values.namespaces.fabric }}.svc.cluster.local,localhost"
+            - name: FABRIC_CA_SERVER_OPERATIONS_LISTENADDRESS
+              value: "0.0.0.0:9443"
+            - name: FABRIC_CA_SERVER_OPERATIONS_TLS_ENABLED
+              value: "false"
+            - name: FABRIC_CA_SERVER_CA_KEYFILE
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $root.Release.Name }}-ca-{{ $ca.orgShort }}-secrets
+                  key: ca-key
+                  optional: true
+            - name: FABRIC_CA_SERVER_CA_CERTFILE
+              value: "/etc/hyperledger/fabric-ca-server-config/ca-cert.pem"
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: operations
+            initialDelaySeconds: 30
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: operations
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          volumeMounts:
+            - name: ca-data
+              mountPath: /etc/hyperledger/fabric-ca-server
+            - name: ca-config
+              mountPath: /etc/hyperledger/fabric-ca-server-config
+              readOnly: true
+      volumes:
+        - name: ca-config
+          secret:
+            secretName: {{ $root.Release.Name }}-ca-{{ $ca.orgShort }}-crypto
+            optional: true
+  volumeClaimTemplates:
+    - metadata:
+        name: ca-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        {{- if $root.Values.fabric.persistence.storageClass }}
+        storageClassName: {{ $root.Values.fabric.persistence.storageClass }}
+        {{- end }}
+        resources:
+          requests:
+            storage: {{ $root.Values.fabric.persistence.caSize }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $root.Release.Name }}-ca-{{ $ca.orgShort }}
+  namespace: {{ $root.Values.namespaces.fabric }}
+  labels:
+    {{- include "pariksha.componentLabels" (dict "Chart" $root.Chart "Release" $root.Release "component" (printf "ca-%s" $ca.orgShort)) | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: ca
+      port: 7054
+      targetPort: ca
+      protocol: TCP
+    - name: operations
+      port: 9443
+      targetPort: operations
+      protocol: TCP
+  selector:
+    {{- include "pariksha.selectorLabels" (dict "Release" $root.Release "component" (printf "ca-%s" $ca.orgShort)) | nindent 4 }}
+---
+{{- end }}
+{{- end }}

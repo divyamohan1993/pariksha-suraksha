@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Release.Name }}-crypto-lifecycle-config
+  namespace: {{ .Values.namespaces.api }}
+  labels:
+    {{- include "pariksha.componentLabels" (dict "Chart" .Chart "Release" .Release "component" "crypto-lifecycle") | nindent 4 }}
+data:
+  NODE_ENV: {{ .Values.global.environment }}
+  PORT: {{ .Values.cryptoLifecycle.port | quote }}
+  GRPC_PORT: {{ .Values.cryptoLifecycle.grpcPort | quote }}
+  GCP_PROJECT_ID: {{ .Values.global.gcpProjectId }}
+  REDIS_HOST: {{ .Values.redis.host | quote }}
+  REDIS_PORT: {{ .Values.redis.port | quote }}
+  FIRESTORE_DATABASE: {{ .Values.global.firestoreDatabase }}
+  GCS_BUCKET_ENCRYPTED: {{ .Values.global.gcsBucketEncrypted }}
+  KMS_KEY_RING: "pariksha-keyring"
+  KMS_CRYPTO_KEY: "pariksha-exam-key"
+  PUBSUB_TOPIC_TLP_GENERATOR: "tlp-generator-topic"
+  BLOCKCHAIN_SERVICE_URL: "{{ .Release.Name }}-blockchain-service.{{ .Values.namespaces.api }}.svc.cluster.local:{{ .Values.blockchainService.grpcPort }}"
+  LOG_LEVEL: "info"

@@ -1,0 +1,30 @@
+{
+  "name": "@pariksha/exam-audit-chaincode",
+  "version": "1.0.0",
+  "description": "Hyperledger Fabric chaincode for ParikshaSuraksha exam audit trail — immutable event recording with composite key queries",
+  "main": "dist/index.js",
+  "typings": "dist/index.d.ts",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc -w",
+    "prepublishOnly": "npm run build",
+    "start": "fabric-chaincode-node start",
+    "test": "jest",
+    "lint": "eslint \"{src,test}/**/*.ts\" --fix"
+  },
+  "dependencies": {
+    "fabric-contract-api": "^2.5.7",
+    "fabric-shim": "^2.5.7",
+    "json-stringify-deterministic": "^1.0.12",
+    "sort-keys-recursive": "^2.1.10"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.5.0"
+  }
+}

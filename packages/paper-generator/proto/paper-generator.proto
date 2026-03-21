@@ -1,0 +1,114 @@
+syntax = "proto3";
+
+package paper_generator;
+
+service PaperGeneratorService {
+  // Trigger matrix generation — publishes job to Pub/Sub
+  rpc TriggerMatrixGeneration (TriggerMatrixRequest) returns (TriggerMatrixResponse);
+
+  // Poll matrix generation status from Firestore
+  rpc GetMatrixStatus (GetMatrixStatusRequest) returns (MatrixStatusResponse);
+
+  // O(1) paper lookup — single Redis GET returning pre-rendered paper
+  rpc GetAssignment (GetAssignmentRequest) returns (PaperResponse);
+
+  // Preload assignment matrix from Firestore to Redis
+  rpc PreloadMatrix (PreloadMatrixRequest) returns (PreloadMatrixResponse);
+
+  // Pre-warm complete rendered paper cache
+  rpc PreWarmCache (PreWarmCacheRequest) returns (PreWarmCacheResponse);
+}
+
+message TriggerMatrixRequest {
+  string exam_id = 1;
+}
+
+message TriggerMatrixResponse {
+  string job_id = 1;
+  string status = 2;
+}
+
+message GetMatrixStatusRequest {
+  string exam_id = 1;
+}
+
+message MatrixStatusResponse {
+  string exam_id = 1;
+  string status = 2;
+  double progress = 3;
+  int32 total_papers = 4;
+  int32 completed_papers = 5;
+  string started_at = 6;
+  string completed_at = 7;
+  string error = 8;
+}
+
+message GetAssignmentRequest {
+  string exam_id = 1;
+  string center_id = 2;
+  string seat_num = 3;
+}
+
+message PaperResponse {
+  string exam_id = 1;
+  string center_id = 2;
+  string seat_num = 3;
+  string rendered_at = 4;
+  string paper_hash = 5;
+  PaperMetadata metadata = 6;
+  repeated RenderedQuestion questions = 7;
+}
+
+message PaperMetadata {
+  int32 total_questions = 1;
+  int32 total_marks = 2;
+  int32 duration_minutes = 3;
+  repeated SectionMetadata sections = 4;
+  map<string, int32> time_allocation = 5;
+}
+
+message SectionMetadata {
+  string name = 1;
+  int32 question_count = 2;
+  int32 start_position = 3;
+  int32 end_position = 4;
+  int32 total_marks = 5;
+}
+
+message RenderedQuestion {
+  int32 position = 1;
+  string question_id = 2;
+  string rendered_text = 3;
+  repeated RenderedOption options = 4;
+  int32 marks = 5;
+  int32 negative_marks = 6;
+  string section = 7;
+  string bloom_level = 8;
+}
+
+message RenderedOption {
+  string label = 1;
+  string rendered_text = 2;
+}
+
+message PreloadMatrixRequest {
+  string exam_id = 1;
+}
+
+message PreloadMatrixResponse {
+  int32 total_assignments = 1;
+  int32 loaded_assignments = 2;
+  int64 duration_ms = 3;
+}
+
+message PreWarmCacheRequest {
+  string exam_id = 1;
+  string duration_minutes = 2;
+}
+
+message PreWarmCacheResponse {
+  int32 total_papers = 1;
+  int32 cached_papers = 2;
+  int32 failed_papers = 3;
+  int64 duration_ms = 4;
+}

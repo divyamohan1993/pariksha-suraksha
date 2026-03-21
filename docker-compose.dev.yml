@@ -1,0 +1,294 @@
+version: '3.9'
+
+# ParikshaSuraksha — Local Development Environment
+# Usage: make dev (or docker compose -f docker-compose.dev.yml up --build)
+
+services:
+  # ─────────────────────────────────────────────
+  # DATA LAYER
+  # ─────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    command: >
+      redis-server
+      --requirepass devpassword
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "devpassword", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  firestore-emulator:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:latest
+    ports:
+      - "8080:8080"
+    command: >
+      gcloud emulators firestore start
+      --host-port=0.0.0.0:8080
+      --project=pariksha-dev
+    environment:
+      - FIRESTORE_EMULATOR_HOST=0.0.0.0:8080
+
+  pubsub-emulator:
+    image: gcr.io/google.com/cloudsdktool/google-cloud-cli:latest
+    ports:
+      - "8085:8085"
+    command: >
+      gcloud beta emulators pubsub start
+      --host-port=0.0.0.0:8085
+      --project=pariksha-dev
+
+  # ─────────────────────────────────────────────
+  # BACKEND SERVICES
+  # ─────────────────────────────────────────────
+  api-gateway:
+    build:
+      context: ./packages/api-gateway
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - JWT_SECRET=dev-secret-change-in-production
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=devpassword
+      - FIRESTORE_EMULATOR_HOST=firestore-emulator:8080
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+      - GCP_PROJECT_ID=pariksha-dev
+      - QUESTION_SERVICE_URL=question-service:5001
+      - PAPER_GENERATOR_URL=paper-generator:5002
+      - CRYPTO_LIFECYCLE_URL=crypto-lifecycle:5003
+      - EXAM_SESSION_URL=exam-session-service:5004
+      - COLLUSION_ENGINE_URL=collusion-engine:5005
+      - BLOCKCHAIN_SERVICE_URL=blockchain-service:5006
+    depends_on:
+      redis:
+        condition: service_healthy
+      firestore-emulator:
+        condition: service_started
+    restart: unless-stopped
+
+  question-service:
+    build:
+      context: ./packages/question-service
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3001"
+      - "5001:5001"
+    environment:
+      - NODE_ENV=development
+      - PORT=3001
+      - GRPC_PORT=5001
+      - FIRESTORE_EMULATOR_HOST=firestore-emulator:8080
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+      - GCP_PROJECT_ID=pariksha-dev
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
+    depends_on:
+      firestore-emulator:
+        condition: service_started
+
+  paper-generator:
+    build:
+      context: ./packages/paper-generator
+      dockerfile: Dockerfile
+    ports:
+      - "3002:3002"
+      - "5002:5002"
+    environment:
+      - NODE_ENV=development
+      - PORT=3002
+      - GRPC_PORT=5002
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=devpassword
+      - FIRESTORE_EMULATOR_HOST=firestore-emulator:8080
+      - GCP_PROJECT_ID=pariksha-dev
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  crypto-lifecycle:
+    build:
+      context: ./packages/crypto-lifecycle
+      dockerfile: Dockerfile
+    ports:
+      - "3003:3003"
+      - "5003:5003"
+    environment:
+      - NODE_ENV=development
+      - PORT=3003
+      - GRPC_PORT=5003
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=devpassword
+      - FIRESTORE_EMULATOR_HOST=firestore-emulator:8080
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+      - GCP_PROJECT_ID=pariksha-dev
+      - KMS_EMULATED=true
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  exam-session-service:
+    build:
+      context: ./packages/exam-session-service
+      dockerfile: Dockerfile
+    ports:
+      - "3004:3004"
+      - "5004:5004"
+    environment:
+      - NODE_ENV=development
+      - PORT=3004
+      - GRPC_PORT=5004
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=devpassword
+      - FIRESTORE_EMULATOR_HOST=firestore-emulator:8080
+      - GCP_PROJECT_ID=pariksha-dev
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  collusion-engine:
+    build:
+      context: ./packages/collusion-engine
+      dockerfile: Dockerfile
+    ports:
+      - "3005:3005"
+      - "5005:5005"
+    environment:
+      - NODE_ENV=development
+      - PORT=3005
+      - GRPC_PORT=5005
+      - FIRESTORE_EMULATOR_HOST=firestore-emulator:8080
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+      - GCP_PROJECT_ID=pariksha-dev
+    depends_on:
+      firestore-emulator:
+        condition: service_started
+
+  blockchain-service:
+    build:
+      context: ./packages/blockchain-service
+      dockerfile: Dockerfile
+    ports:
+      - "3006:3006"
+      - "5006:5006"
+    environment:
+      - NODE_ENV=development
+      - PORT=3006
+      - GRPC_PORT=5006
+      - FIRESTORE_EMULATOR_HOST=firestore-emulator:8080
+      - GCP_PROJECT_ID=pariksha-dev
+      - FABRIC_ENABLED=false
+    depends_on:
+      firestore-emulator:
+        condition: service_started
+
+  # ─────────────────────────────────────────────
+  # FRONTENDS
+  # ─────────────────────────────────────────────
+  admin-dashboard:
+    build:
+      context: ./packages/admin-dashboard
+      dockerfile: Dockerfile
+    ports:
+      - "3010:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:3000
+      - NEXT_PUBLIC_WS_URL=ws://localhost:3000
+    depends_on:
+      - api-gateway
+
+  candidate-portal:
+    build:
+      context: ./packages/candidate-portal
+      dockerfile: Dockerfile
+    ports:
+      - "3011:3000"
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:3000
+      - NEXT_PUBLIC_WS_URL=ws://localhost:3000
+    depends_on:
+      - api-gateway
+
+  # ─────────────────────────────────────────────
+  # PYTHON WORKERS
+  # ─────────────────────────────────────────────
+  irt-calibrator:
+    build:
+      context: ./workers/irt-calibrator
+      dockerfile: Dockerfile
+    environment:
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+      - FIRESTORE_EMULATOR_HOST=firestore-emulator:8080
+      - GCP_PROJECT_ID=pariksha-dev
+      - PUBSUB_SUBSCRIPTION=irt-calibration-trigger-sub
+    depends_on:
+      pubsub-emulator:
+        condition: service_started
+
+  matrix-solver:
+    build:
+      context: ./workers/matrix-solver
+      dockerfile: Dockerfile
+    environment:
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+      - FIRESTORE_EMULATOR_HOST=firestore-emulator:8080
+      - GCP_PROJECT_ID=pariksha-dev
+      - PUBSUB_SUBSCRIPTION=matrix-solver-trigger-sub
+    depends_on:
+      pubsub-emulator:
+        condition: service_started
+
+  collusion-detector:
+    build:
+      context: ./workers/collusion-detector
+      dockerfile: Dockerfile
+    environment:
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+      - FIRESTORE_EMULATOR_HOST=firestore-emulator:8080
+      - GCP_PROJECT_ID=pariksha-dev
+      - PUBSUB_SUBSCRIPTION=collusion-detection-trigger-sub
+    depends_on:
+      pubsub-emulator:
+        condition: service_started
+
+  tlp-generator:
+    build:
+      context: ./workers/tlp-generator
+      dockerfile: Dockerfile
+    environment:
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+      - FIRESTORE_EMULATOR_HOST=firestore-emulator:8080
+      - GCP_PROJECT_ID=pariksha-dev
+      - PUBSUB_SUBSCRIPTION=tlp-generation-trigger-sub
+    depends_on:
+      pubsub-emulator:
+        condition: service_started
+
+  score-equator:
+    build:
+      context: ./workers/score-equator
+      dockerfile: Dockerfile
+    environment:
+      - PUBSUB_EMULATOR_HOST=pubsub-emulator:8085
+      - FIRESTORE_EMULATOR_HOST=firestore-emulator:8080
+      - GCP_PROJECT_ID=pariksha-dev
+      - PUBSUB_SUBSCRIPTION=score-equation-trigger-sub
+    depends_on:
+      pubsub-emulator:
+        condition: service_started
+
+volumes:
+  redis-data:
