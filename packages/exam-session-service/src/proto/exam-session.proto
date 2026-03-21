@@ -1,0 +1,85 @@
+syntax = "proto3";
+
+package exam_session;
+
+service ExamSessionService {
+  rpc StartExamSession (StartExamSessionRequest) returns (StartExamSessionResponse);
+  rpc SubmitResponses (SubmitResponsesRequest) returns (SubmitResponsesResponse);
+  rpc SaveCheckpoint (SaveCheckpointRequest) returns (SaveCheckpointResponse);
+  rpc LoadCheckpoint (LoadCheckpointRequest) returns (LoadCheckpointResponse);
+  rpc GetSubmissionVerification (GetSubmissionVerificationRequest) returns (GetSubmissionVerificationResponse);
+}
+
+message QuestionResponseProto {
+  int32 question_position = 1;
+  string template_id = 2;
+  string param_instantiation_id = 3;
+  string selected_choice = 4;
+  bool marked_for_review = 5;
+  bool visited = 6;
+  int64 time_spent_ms = 7;
+}
+
+message StartExamSessionRequest {
+  string candidate_id = 1;
+  string exam_id = 2;
+  string center_id = 3;
+  int32 seat_num = 4;
+}
+
+message StartExamSessionResponse {
+  string session_id = 1;
+  string exam_id = 2;
+  string candidate_id = 3;
+  string paper_json = 4;
+  int64 duration_minutes = 5;
+  string started_at = 6;
+}
+
+message SubmitResponsesRequest {
+  string candidate_id = 1;
+  string exam_id = 2;
+  repeated QuestionResponseProto responses = 3;
+}
+
+message SubmitResponsesResponse {
+  string submission_hash = 1;
+  string verification_url = 2;
+  string submitted_at = 3;
+}
+
+message SaveCheckpointRequest {
+  string candidate_id = 1;
+  string exam_id = 2;
+  repeated QuestionResponseProto responses = 3;
+  int32 current_question_position = 4;
+  int64 elapsed_ms = 5;
+}
+
+message SaveCheckpointResponse {
+  bool success = 1;
+  string saved_at = 2;
+}
+
+message LoadCheckpointRequest {
+  string candidate_id = 1;
+  string exam_id = 2;
+}
+
+message LoadCheckpointResponse {
+  bool found = 1;
+  repeated QuestionResponseProto responses = 2;
+  int32 current_question_position = 3;
+  int64 elapsed_ms = 4;
+  string saved_at = 5;
+}
+
+message GetSubmissionVerificationRequest {
+  string submission_hash = 1;
+}
+
+message GetSubmissionVerificationResponse {
+  bool verified = 1;
+  string timestamp = 2;
+  string blockchain_event_id = 3;
+}

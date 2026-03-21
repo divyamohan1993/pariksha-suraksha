@@ -1,0 +1,148 @@
+syntax = "proto3";
+
+package pariksha.blockchain;
+
+option go_package = "pariksha/blockchain";
+
+// ────────────────────────────────────────────────────────────────────────
+// Blockchain Service — Fabric SDK operations, audit events, Merkle proofs
+// ────────────────────────────────────────────────────────────────────────
+
+service BlockchainService {
+  rpc RecordEvent(RecordEventRequest) returns (RecordEventResponse);
+  rpc QueryEvent(QueryEventRequest) returns (QueryEventResponse);
+  rpc QueryEventsByExam(QueryEventsByExamRequest) returns (QueryEventsByExamResponse);
+  rpc QueryEventsByTimeRange(QueryEventsByTimeRangeRequest) returns (QueryEventsByTimeRangeResponse);
+  rpc GetMerkleProof(GetMerkleProofRequest) returns (MerkleProofResponse);
+  rpc VerifyMerkleProof(VerifyMerkleProofRequest) returns (VerifyMerkleProofResponse);
+  rpc GetTimeline(GetTimelineRequest) returns (TimelineResponse);
+  rpc HealthCheck(HealthCheckRequest) returns (HealthCheckResponse);
+}
+
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  QUESTION_CREATE = 1;
+  ENCRYPT = 2;
+  KEY_GENERATE = 3;
+  DISTRIBUTE = 4;
+  KEY_RELEASE = 5;
+  DECRYPT = 6;
+  SUBMIT = 7;
+  GRADE = 8;
+  SCRIBE_ACTION = 9;
+  EMERGENCY_RELEASE = 10;
+}
+
+message AuditEvent {
+  string event_id = 1;
+  string event_type = 2;
+  string exam_id = 3;
+  string entity_hash = 4;
+  string timestamp = 5;
+  string actor_id = 6;
+  string actor_org = 7;
+  string metadata = 8;
+}
+
+message MerkleProofNode {
+  string hash = 1;
+  string position = 2;
+}
+
+message MerkleProof {
+  string event_id = 1;
+  string tx_id = 2;
+  uint64 block_number = 3;
+  string block_hash = 4;
+  string tx_hash = 5;
+  repeated MerkleProofNode proof_nodes = 6;
+  bool verified = 7;
+}
+
+message RecordEventRequest {
+  string event_type = 1;
+  string exam_id = 2;
+  string entity_hash = 3;
+  string metadata = 4;
+}
+
+message RecordEventResponse {
+  string event_id = 1;
+  string tx_id = 2;
+  uint64 block_number = 3;
+  bool success = 4;
+  string error = 5;
+}
+
+message QueryEventRequest {
+  string event_id = 1;
+}
+
+message QueryEventResponse {
+  AuditEvent event = 1;
+  bool found = 2;
+}
+
+message QueryEventsByExamRequest {
+  string exam_id = 1;
+}
+
+message QueryEventsByExamResponse {
+  repeated AuditEvent events = 1;
+  int32 total_count = 2;
+}
+
+message QueryEventsByTimeRangeRequest {
+  string start_time = 1;
+  string end_time = 2;
+}
+
+message QueryEventsByTimeRangeResponse {
+  repeated AuditEvent events = 1;
+  int32 total_count = 2;
+}
+
+message GetMerkleProofRequest {
+  string event_id = 1;
+}
+
+message MerkleProofResponse {
+  MerkleProof proof = 1;
+  bool success = 2;
+  string error = 3;
+}
+
+message VerifyMerkleProofRequest {
+  MerkleProof proof = 1;
+}
+
+message VerifyMerkleProofResponse {
+  bool verified = 1;
+  string computed_root = 2;
+  string expected_root = 3;
+  string error = 4;
+}
+
+message GetTimelineRequest {
+  string exam_id = 1;
+}
+
+message TimelineEntry {
+  AuditEvent event = 1;
+  string description = 2;
+}
+
+message TimelineResponse {
+  string exam_id = 1;
+  repeated TimelineEntry entries = 2;
+  int32 total_count = 3;
+}
+
+message HealthCheckRequest {}
+
+message HealthCheckResponse {
+  string status = 1;
+  bool fabric_connected = 2;
+  string peer_status = 3;
+  string orderer_status = 4;
+}

@@ -1,0 +1,197 @@
+global:
+  environment: dev
+  domain: dev.pariksha.dmj.one
+
+apiGateway:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  hpa:
+    enabled: false
+
+questionService:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  hpa:
+    enabled: false
+
+paperGenerator:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  hpa:
+    enabled: false
+
+cryptoLifecycle:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  hpa:
+    enabled: false
+
+examSessionService:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  hpa:
+    enabled: false
+
+collusionEngine:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  hpa:
+    enabled: false
+
+blockchainService:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 256Mi
+  hpa:
+    enabled: false
+
+adminDashboard:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 128Mi
+  hpa:
+    enabled: false
+
+candidatePortal:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 250m
+      memory: 128Mi
+  hpa:
+    enabled: false
+
+workers:
+  irtCalibrator:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+    hpa:
+      enabled: false
+  matrixSolver:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+    hpa:
+      enabled: false
+  collusionDetector:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+    hpa:
+      enabled: false
+  tlpGenerator:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+    hpa:
+      enabled: false
+  scoreEquator:
+    replicas: 1
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: 1000m
+        memory: 2Gi
+    hpa:
+      enabled: false
+
+fabric:
+  enabled: true
+  organizations:
+    - name: ParikshaSurakshaOrg
+      mspId: ParikshaSurakshaMSP
+      peerCount: 1
+      domain: pariksha.dmj.one
+    - name: NTAOrg
+      mspId: NTAMSP
+      peerCount: 1
+      domain: nta.pariksha.dmj.one
+    - name: AuditorOrg
+      mspId: AuditorMSP
+      peerCount: 1
+      domain: auditor.pariksha.dmj.one
+  persistence:
+    storageClass: standard
+    peerSize: 5Gi
+    ordererSize: 2Gi
+    caSize: 1Gi
+    couchdbSize: 5Gi
+
+ingress:
+  tls:
+    enabled: false
+
+monitoring:
+  enabled: false

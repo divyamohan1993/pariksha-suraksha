@@ -1,0 +1,166 @@
+syntax = "proto3";
+
+package pariksha.session;
+
+option go_package = "pariksha/session";
+
+// ────────────────────────────────────────────────────────────────────────
+// Exam Session Service — Candidate response lifecycle during the exam
+// Orchestrates paper-generator (read), crypto-lifecycle (encrypt),
+// and blockchain-service (audit) per addendum Fix 6.
+// ────────────────────────────────────────────────────────────────────────
+
+service ExamSessionService {
+  // Start exam session — loads paper, records blockchain event
+  rpc StartSession(StartSessionRequest) returns (StartSessionResponse);
+
+  // Periodic checkpoint — encrypts and stores response snapshot
+  rpc Checkpoint(CheckpointRequest) returns (CheckpointResponse);
+
+  // Final submission — encrypts, stores to GCS, records blockchain event
+  rpc SubmitResponse(SubmitResponseRequest) returns (SubmitResponseResponse);
+
+  // Retrieve checkpoint for session recovery after disconnection
+  rpc GetCheckpoint(GetCheckpointRequest) returns (GetCheckpointResponse);
+
+  // Scribe-specific actions (per addendum Fix 3)
+  rpc RecordScribeAction(RecordScribeActionRequest) returns (RecordScribeActionResponse);
+
+  // Trigger score equating (per addendum Fix 1)
+  rpc TriggerEquating(TriggerEquatingRequest) returns (TriggerEquatingResponse);
+
+  // Retrieve equated results
+  rpc GetResults(GetResultsRequest) returns (GetResultsResponse);
+}
+
+// ── Messages ───────────────────────────────────────────────────────────
+
+message QuestionResponse {
+  int32 question_position = 1;
+  string template_id = 2;
+  string param_instantiation_id = 3;
+  optional string selected_choice = 4; // null if unanswered
+  bool marked_for_review = 5;
+  bool visited = 6;
+  int64 time_spent_ms = 7;
+}
+
+message ExamCheckpoint {
+  string candidate_id = 1;
+  string exam_id = 2;
+  repeated QuestionResponse responses = 3;
+  int32 current_question_position = 4;
+  int64 elapsed_ms = 5;
+  string saved_at = 6;
+}
+
+message CandidateResult {
+  string candidate_id = 1;
+  string exam_id = 2;
+  double raw_score = 3;
+  double equated_score = 4;
+  bool equating_applied = 5;
+  double theta_estimate = 6;
+  string verification_hash = 7;
+  string graded_at = 8;
+}
+
+// ── Request / Response ─────────────────────────────────────────────────
+
+message StartSessionRequest {
+  string exam_id = 1;
+  string candidate_id = 2;
+  string center_id = 3;
+  int32 seat_num = 4;
+}
+
+message StartSessionResponse {
+  string session_id = 1;
+  string exam_id = 2;
+  string candidate_id = 3;
+  // The rendered paper is returned inline for the exam terminal
+  int32 total_questions = 4;
+  int32 duration_minutes = 5;
+  string started_at = 6;
+  // Indicates if a previous checkpoint was found (session recovery)
+  bool recovered = 7;
+  optional ExamCheckpoint recovery_checkpoint = 8;
+}
+
+message CheckpointRequest {
+  string session_id = 1;
+  string exam_id = 2;
+  string candidate_id = 3;
+  repeated QuestionResponse responses = 4;
+  int32 current_question_position = 5;
+  int64 elapsed_ms = 6;
+}
+
+message CheckpointResponse {
+  bool success = 1;
+  string saved_at = 2;
+  int32 checkpoint_number = 3;
+}
+
+message SubmitResponseRequest {
+  string session_id = 1;
+  string exam_id = 2;
+  string candidate_id = 3;
+  repeated QuestionResponse responses = 4;
+  int64 total_elapsed_ms = 5;
+}
+
+message SubmitResponseResponse {
+  bool success = 1;
+  string submission_hash = 2;       // SHA-256 for public verification
+  string encrypted_blob_uri = 3;    // GCS URI
+  string blockchain_event_id = 4;   // audit trail reference
+  string submitted_at = 5;
+}
+
+message GetCheckpointRequest {
+  string exam_id = 1;
+  string candidate_id = 2;
+}
+
+message GetCheckpointResponse {
+  bool found = 1;
+  optional ExamCheckpoint checkpoint = 2;
+}
+
+message RecordScribeActionRequest {
+  string session_id = 1;
+  string exam_id = 2;
+  string candidate_id = 3;
+  string scribe_id = 4;
+  string action_type = 5;   // "key_press" | "response_selection" | "navigation"
+  string action_detail = 6; // JSON-encoded action detail
+  int64 timestamp_ms = 7;
+}
+
+message RecordScribeActionResponse {
+  bool recorded = 1;
+  string blockchain_event_id = 2;
+}
+
+message TriggerEquatingRequest {
+  string exam_id = 1;
+}
+
+message TriggerEquatingResponse {
+  string job_id = 1;
+  string status = 2; // "queued"
+}
+
+message GetResultsRequest {
+  string exam_id = 1;
+  optional string candidate_id = 2; // if omitted, returns all results for the exam
+  int32 page_size = 3;
+  string page_token = 4;
+}
+
+message GetResultsResponse {
+  repeated CandidateResult results = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}

@@ -1,0 +1,208 @@
+{{- if .Values.monitoring.enabled }}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ .Release.Name }}-alerts
+  namespace: {{ .Values.namespaces.api }}
+  labels:
+    {{- include "pariksha.labels" . | nindent 4 }}
+    release: prometheus
+spec:
+  groups:
+    - name: pariksha-key-release
+      rules:
+        - alert: KeyReleaseDeviationCritical
+          expr: |
+            abs(pariksha_key_release_deviation_seconds) > {{ .Values.monitoring.alerts.keyReleaseDeviationSeconds }}
+          for: 0m
+          labels:
+            severity: critical
+            team: pariksha-ops
+          annotations:
+            summary: "Key release deviation exceeds {{ .Values.monitoring.alerts.keyReleaseDeviationSeconds }}s threshold"
+            description: "Crypto key release for exam {{ `{{ $labels.exam_id }}` }} deviated by {{ `{{ $value }}` }}s from scheduled time. This is a P0 incident."
+            runbook_url: "https://pariksha.dmj.one/runbooks/key-release-deviation"
+
+        - alert: KeyReleaseFailure
+          expr: |
+            pariksha_key_release_failures_total > 0
+          for: 0m
+          labels:
+            severity: critical
+            team: pariksha-ops
+          annotations:
+            summary: "Key release failure detected"
+            description: "Failed to release decryption keys for exam {{ `{{ $labels.exam_id }}` }}. Emergency key release protocol may be needed."
+
+    - name: pariksha-paper-generation
+      rules:
+        - alert: PaperGenLatencyHigh
+          expr: |
+            histogram_quantile(0.95, rate(pariksha_paper_generation_duration_seconds_bucket[5m])) * 1000 > {{ .Values.monitoring.alerts.paperGenLatencyMs }}
+          for: 2m
+          labels:
+            severity: warning
+            team: pariksha-ops
+          annotations:
+            summary: "Paper generation p95 latency exceeds {{ .Values.monitoring.alerts.paperGenLatencyMs }}ms"
+            description: "Paper generation latency is {{ `{{ $value }}` }}ms (p95). SLA is {{ .Values.monitoring.alerts.paperGenLatencyMs }}ms. Check Redis cache and paper-generator pods."
+
+        - alert: PaperGenLatencyCritical
+          expr: |
+            histogram_quantile(0.99, rate(pariksha_paper_generation_duration_seconds_bucket[5m])) * 1000 > 500
+          for: 1m
+          labels:
+            severity: critical
+            team: pariksha-ops
+          annotations:
+            summary: "Paper generation p99 latency exceeds 500ms"
+            description: "Paper generation latency is critically high at {{ `{{ $value }}` }}ms (p99). Immediate investigation needed."
+
+    - name: pariksha-fabric
+      rules:
+        - alert: FabricPeerDown
+          expr: |
+            up{job=~".*peer.*"} == 0
+          for: 1m
+          labels:
+            severity: critical
+            team: pariksha-ops
+          annotations:
+            summary: "Fabric peer {{ `{{ $labels.pod }}` }} is down"
+            description: "Fabric peer {{ `{{ $labels.pod }}` }} in org {{ `{{ $labels.fabric_org }}` }} has been down for more than 1 minute."
+
+        - alert: FabricOrdererDown
+          expr: |
+            up{job=~".*orderer.*"} == 0
+          for: 1m
+          labels:
+            severity: critical
+            team: pariksha-ops
+          annotations:
+            summary: "Fabric orderer {{ `{{ $labels.pod }}` }} is down"
+            description: "Raft orderer {{ `{{ $labels.pod }}` }} is down. With 3 orderers, losing 2 will halt block production."
+
+        - alert: FabricBlockProductionStalled
+          expr: |
+            rate(ledger_blockchain_height[5m]) == 0
+          for: 5m
+          labels:
+            severity: warning
+            team: pariksha-ops
+          annotations:
+            summary: "No new blocks produced in 5 minutes"
+            description: "Fabric ledger height has not increased for 5 minutes on peer {{ `{{ $labels.pod }}` }}."
+
+    - name: pariksha-collusion
+      rules:
+        - alert: CollusionDetectionJobStuck
+          expr: |
+            pariksha_collusion_job_duration_seconds > 1200
+          for: 0m
+          labels:
+            severity: warning
+            team: pariksha-ops
+          annotations:
+            summary: "Collusion detection job running > 20 minutes"
+            description: "Collusion detection for exam {{ `{{ $labels.exam_id }}` }}, center {{ `{{ $labels.center_id }}` }} has been running for {{ `{{ $value }}` }}s. SLA is 900s."
+
+    - name: pariksha-service-health
+      rules:
+        - alert: HighErrorRate
+          expr: |
+            sum(rate(http_requests_total{status=~"5.."}[5m])) by (service)
+            /
+            sum(rate(http_requests_total[5m])) by (service)
+            > {{ .Values.monitoring.alerts.errorRateThreshold }}
+          for: 2m
+          labels:
+            severity: warning
+            team: pariksha-ops
+          annotations:
+            summary: "High error rate on {{ `{{ $labels.service }}` }}"
+            description: "Service {{ `{{ $labels.service }}` }} has an error rate of {{ `{{ $value | humanizePercentage }}` }} (threshold: {{ .Values.monitoring.alerts.errorRateThreshold | float64 | mul 100 }}%)."
+
+        - alert: PodCrashLooping
+          expr: |
+            rate(kube_pod_container_status_restarts_total{namespace=~"pariksha-.*"}[15m]) * 60 * 15 > 3
+          for: 5m
+          labels:
+            severity: warning
+            team: pariksha-ops
+          annotations:
+            summary: "Pod {{ `{{ $labels.pod }}` }} is crash looping"
+            description: "Pod {{ `{{ $labels.pod }}` }} in namespace {{ `{{ $labels.namespace }}` }} has restarted {{ `{{ $value }}` }} times in the last 15 minutes."
+
+        - alert: HighMemoryUsage
+          expr: |
+            container_memory_working_set_bytes{namespace=~"pariksha-.*"}
+            /
+            container_spec_memory_limit_bytes{namespace=~"pariksha-.*"}
+            > 0.9
+          for: 5m
+          labels:
+            severity: warning
+            team: pariksha-ops
+          annotations:
+            summary: "High memory usage on {{ `{{ $labels.pod }}` }}"
+            description: "Pod {{ `{{ $labels.pod }}` }} is using {{ `{{ $value | humanizePercentage }}` }} of its memory limit."
+
+    - name: pariksha-security
+      rules:
+        - alert: UnauthorizedKMSAccess
+          expr: |
+            pariksha_kms_unauthorized_access_total > 0
+          for: 0m
+          labels:
+            severity: critical
+            team: pariksha-security
+          annotations:
+            summary: "Unauthorized KMS key access attempt detected"
+            description: "An unauthorized attempt to access Cloud KMS keys was detected. Actor: {{ `{{ $labels.actor }}` }}. This is a P0 security incident."
+
+        - alert: AbnormalBlockchainEventRate
+          expr: |
+            rate(pariksha_blockchain_events_total[5m]) > 100
+          for: 2m
+          labels:
+            severity: warning
+            team: pariksha-security
+          annotations:
+            summary: "Abnormally high blockchain event rate"
+            description: "Blockchain event recording rate is {{ `{{ $value }}` }}/s, which may indicate anomalous activity."
+
+        - alert: RedisConnectionAnomaly
+          expr: |
+            redis_connected_clients > 100
+          for: 5m
+          labels:
+            severity: warning
+            team: pariksha-ops
+          annotations:
+            summary: "Unusually high number of Redis connections"
+            description: "Redis has {{ `{{ $value }}` }} active connections. Normal range is 10-50."
+
+    - name: pariksha-workers
+      rules:
+        - alert: WorkerPubSubBacklog
+          expr: |
+            pubsub_subscription_num_undelivered_messages > 100
+          for: 5m
+          labels:
+            severity: warning
+            team: pariksha-ops
+          annotations:
+            summary: "Pub/Sub backlog growing for {{ `{{ $labels.subscription_id }}` }}"
+            description: "Subscription {{ `{{ $labels.subscription_id }}` }} has {{ `{{ $value }}` }} undelivered messages. Workers may need to scale up."
+
+        - alert: MatrixSolverTimeout
+          expr: |
+            pariksha_matrix_solver_duration_seconds > 3600
+          for: 0m
+          labels:
+            severity: warning
+            team: pariksha-ops
+          annotations:
+            summary: "Matrix solver job exceeding 1 hour"
+            description: "Matrix solver for exam {{ `{{ $labels.exam_id }}` }} has been running for {{ `{{ $value }}` }}s."
+{{- end }}

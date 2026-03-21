@@ -1,0 +1,258 @@
+---
+# Default deny all ingress in pariksha-api namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress-api
+  namespace: {{ .Values.namespaces.api }}
+  labels:
+    {{- include "pariksha.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# Default deny all ingress in pariksha-web namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress-web
+  namespace: {{ .Values.namespaces.web }}
+  labels:
+    {{- include "pariksha.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# Default deny all ingress in pariksha-workers namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress-workers
+  namespace: {{ .Values.namespaces.workers }}
+  labels:
+    {{- include "pariksha.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# Default deny all ingress in pariksha-fabric namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress-fabric
+  namespace: {{ .Values.namespaces.fabric }}
+  labels:
+    {{- include "pariksha.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# Default deny all ingress in pariksha-data namespace
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress-data
+  namespace: {{ .Values.namespaces.data }}
+  labels:
+    {{- include "pariksha.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+---
+# Allow external ingress to api-gateway only
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-api-gateway
+  namespace: {{ .Values.namespaces.api }}
+  labels:
+    {{- include "pariksha.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: api-gateway
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - port: {{ .Values.apiGateway.port }}
+          protocol: TCP
+---
+# Allow api-gateway to reach all services in pariksha-api
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-api-gateway-to-services
+  namespace: {{ .Values.namespaces.api }}
+  labels:
+    {{- include "pariksha.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: pariksha-suraksha
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: api-gateway
+      ports:
+        - protocol: TCP
+---
+# Allow pariksha-api namespace to reach pariksha-data (Redis, etc.)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-api-to-data
+  namespace: {{ .Values.namespaces.data }}
+  labels:
+    {{- include "pariksha.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: {{ .Values.namespaces.api }}
+      ports:
+        - port: {{ .Values.redis.port }}
+          protocol: TCP
+---
+# Allow pariksha-api to reach pariksha-fabric (blockchain-service to fabric peers)
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-api-to-fabric
+  namespace: {{ .Values.namespaces.fabric }}
+  labels:
+    {{- include "pariksha.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: {{ .Values.namespaces.api }}
+      ports:
+        - port: 7051
+          protocol: TCP
+        - port: 7053
+          protocol: TCP
+---
+# Allow pariksha-workers to reach pariksha-data
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-workers-to-data
+  namespace: {{ .Values.namespaces.data }}
+  labels:
+    {{- include "pariksha.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: {{ .Values.namespaces.workers }}
+      ports:
+        - port: {{ .Values.redis.port }}
+          protocol: TCP
+---
+# DENY: pariksha-web cannot reach pariksha-data directly
+# (frontends must go through the API gateway)
+# This is enforced by the default-deny on pariksha-data combined with
+# the absence of any allow rule from pariksha-web namespace.
+# Explicit deny policy for documentation/auditability:
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: deny-web-to-data-explicit
+  namespace: {{ .Values.namespaces.web }}
+  labels:
+    {{- include "pariksha.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    # Allow DNS resolution
+    - to: []
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Allow traffic to pariksha-api namespace (through api-gateway)
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              name: {{ .Values.namespaces.api }}
+      ports:
+        - protocol: TCP
+    # Allow external traffic (for SSR, CDN fetches)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except:
+              - 10.0.0.0/8
+              - 172.16.0.0/12
+              - 192.168.0.0/16
+---
+# Allow ingress to web frontends from ingress controller
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-to-web
+  namespace: {{ .Values.namespaces.web }}
+  labels:
+    {{- include "pariksha.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: pariksha-suraksha
+  policyTypes:
+    - Ingress
+  ingress:
+    - ports:
+        - protocol: TCP
+---
+# Allow fabric peers to communicate with each other and orderers
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-fabric-internal
+  namespace: {{ .Values.namespaces.fabric }}
+  labels:
+    {{- include "pariksha.labels" . | nindent 4 }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              name: {{ .Values.namespaces.fabric }}
+      ports:
+        - port: 7050
+          protocol: TCP
+        - port: 7051
+          protocol: TCP
+        - port: 7053
+          protocol: TCP
+        - port: 7054
+          protocol: TCP
+        - port: 5984
+          protocol: TCP

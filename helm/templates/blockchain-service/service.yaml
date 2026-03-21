@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-blockchain-service
+  namespace: {{ .Values.namespaces.api }}
+  labels:
+    {{- include "pariksha.componentLabels" (dict "Chart" .Chart "Release" .Release "component" "blockchain-service") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ .Values.blockchainService.port }}
+      targetPort: http
+      protocol: TCP
+    - name: grpc
+      port: {{ .Values.blockchainService.grpcPort }}
+      targetPort: grpc
+      protocol: TCP
+  selector:
+    {{- include "pariksha.selectorLabels" (dict "Release" .Release "component" "blockchain-service") | nindent 4 }}

@@ -1,0 +1,27 @@
+{
+  "name": "pariksha-suraksha",
+  "version": "1.0.0",
+  "description": "AI-Powered Exam Integrity & Anti-Cheating Engine",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "clean": "npm run clean --workspaces --if-present",
+    "deploy": "make deploy",
+    "destroy": "make destroy"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/divyamohan1993/pariksha-suraksha"
+  },
+  "author": "Divya Mohan <divyamohan1993@gmail.com>",
+  "license": "UNLICENSED",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}

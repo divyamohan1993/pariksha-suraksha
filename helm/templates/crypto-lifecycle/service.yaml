@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Release.Name }}-crypto-lifecycle
+  namespace: {{ .Values.namespaces.api }}
+  labels:
+    {{- include "pariksha.componentLabels" (dict "Chart" .Chart "Release" .Release "component" "crypto-lifecycle") | nindent 4 }}
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: {{ .Values.cryptoLifecycle.port }}
+      targetPort: http
+      protocol: TCP
+    - name: grpc
+      port: {{ .Values.cryptoLifecycle.grpcPort }}
+      targetPort: grpc
+      protocol: TCP
+  selector:
+    {{- include "pariksha.selectorLabels" (dict "Release" .Release "component" "crypto-lifecycle") | nindent 4 }}

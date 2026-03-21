@@ -1,0 +1,137 @@
+syntax = "proto3";
+
+package pariksha.collusion;
+
+option go_package = "pariksha/collusion";
+
+// ────────────────────────────────────────────────────────────────────────
+// Collusion Engine Service — Trigger detection, serve results, generate reports
+// ────────────────────────────────────────────────────────────────────────
+
+service CollusionEngineService {
+  // Trigger collusion detection (publishes job to Pub/Sub for Python worker)
+  rpc RunCollusionDetection(RunCollusionDetectionRequest) returns (RunCollusionDetectionResponse);
+
+  // Poll job status
+  rpc GetDetectionStatus(GetDetectionStatusRequest) returns (DetectionStatusResponse);
+
+  // Retrieve collusion results for a center
+  rpc GetCollusionResults(GetCollusionResultsRequest) returns (GetCollusionResultsResponse);
+
+  // Retrieve a specific flagged pair's evidence
+  rpc GetCollusionPair(GetCollusionPairRequest) returns (CollusionPairResponse);
+
+  // Get evidence report PDF URI
+  rpc GetEvidenceReport(GetEvidenceReportRequest) returns (GetEvidenceReportResponse);
+}
+
+// ── Messages ───────────────────────────────────────────────────────────
+
+message CollusionQuestionEvidence {
+  int32 question_position = 1;
+  string template_id = 2;
+  string response_u = 3;
+  string response_v = 4;
+  string correct_answer = 5;
+  string match_type = 6;  // "same_wrong" | "different_wrong" | "skipped"
+  double log_lambda_contribution = 7;
+}
+
+message CollusionEvidence {
+  int32 shared_question_count = 1;
+  int32 same_wrong_count = 2;
+  int32 different_wrong_count = 3;
+  repeated CollusionQuestionEvidence question_details = 4;
+  string seating_proximity = 5; // "adjacent" | "same_row" | "same_room" | "different_room"
+}
+
+message CollusionPair {
+  string pair_id = 1;
+  string candidate_u = 2;
+  string candidate_v = 3;
+  string center_id = 4;
+  double log_lambda = 5;
+  double threshold = 6;
+  bool flagged = 7;
+  CollusionEvidence evidence = 8;
+}
+
+message CollusionCluster {
+  string cluster_id = 1;
+  string center_id = 2;
+  repeated string candidate_ids = 3;
+  repeated string pair_ids = 4;
+  double max_log_lambda = 5;
+  double average_log_lambda = 6;
+}
+
+message CollusionResult {
+  string exam_id = 1;
+  string center_id = 2;
+  int32 total_pairs_analyzed = 3;
+  int32 flagged_pair_count = 4;
+  repeated CollusionPair pairs = 5;
+  repeated CollusionCluster clusters = 6;
+  optional string evidence_report_uri = 7;
+  string completed_at = 8;
+}
+
+// ── Request / Response ─────────────────────────────────────────────────
+
+message RunCollusionDetectionRequest {
+  string exam_id = 1;
+  repeated string center_ids = 2; // if empty, run for all centers
+}
+
+message RunCollusionDetectionResponse {
+  string job_id = 1;
+  string status = 2; // "queued"
+  int32 centers_queued = 3;
+}
+
+message GetDetectionStatusRequest {
+  string exam_id = 1;
+}
+
+message DetectionStatusResponse {
+  string exam_id = 1;
+  string status = 2; // "queued" | "running" | "completed" | "failed"
+  int32 centers_completed = 3;
+  int32 total_centers = 4;
+  int32 total_flagged_pairs = 5;
+  optional string error_message = 6;
+}
+
+message GetCollusionResultsRequest {
+  string exam_id = 1;
+  optional string center_id = 2; // if omitted, returns summary across all centers
+  bool flagged_only = 3;
+  int32 page_size = 4;
+  string page_token = 5;
+}
+
+message GetCollusionResultsResponse {
+  repeated CollusionResult results = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+message GetCollusionPairRequest {
+  string exam_id = 1;
+  string center_id = 2;
+  string pair_id = 3;
+}
+
+message CollusionPairResponse {
+  CollusionPair pair = 1;
+}
+
+message GetEvidenceReportRequest {
+  string exam_id = 1;
+  string center_id = 2;
+}
+
+message GetEvidenceReportResponse {
+  string report_uri = 1; // GCS URI to the PDF evidence report
+  string generated_at = 2;
+}
