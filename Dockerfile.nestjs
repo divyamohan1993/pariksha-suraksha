@@ -53,8 +53,7 @@ COPY --from=builder /app/packages/${SERVICE_NAME}/dist ./dist
 COPY --from=builder /app/packages/${SERVICE_NAME}/package.json ./
 
 # Copy proto files if they exist
-COPY packages/${SERVICE_NAME}/src/proto ./dist/proto 2>/dev/null || true
-COPY proto ./proto 2>/dev/null || true
+COPY prot[o] ./proto
 
 USER nestjs
 EXPOSE 3000
