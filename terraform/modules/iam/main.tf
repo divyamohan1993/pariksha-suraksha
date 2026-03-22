@@ -173,6 +173,7 @@ resource "google_service_account_iam_member" "workload_identity" {
   service_account_id = "projects/${var.project_id}/serviceAccounts/${each.value.gcp_sa}"
   role               = "roles/iam.workloadIdentityUser"
   member             = "serviceAccount:${var.project_id}.svc.id.goog[${each.value.k8s_ns}/${each.value.k8s_sa}]"
+
 }
 
 # =============================================================================

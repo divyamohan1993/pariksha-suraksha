@@ -68,10 +68,13 @@ module "network" {
 module "iam" {
   source = "./modules/iam"
 
-  project_id  = var.project_id
-  environment = var.environment
-  name_suffix = local.name_suffix
-  labels      = local.common_labels
+  project_id     = var.project_id
+  environment    = var.environment
+  name_suffix    = local.name_suffix
+  labels         = local.common_labels
+  gke_cluster_id = module.gke.cluster_name
+
+  depends_on = [module.gke]
 }
 
 # -----------------------------------------------------------------------------
@@ -89,7 +92,7 @@ module "kms" {
   crypto_lifecycle_sa_email = module.iam.crypto_lifecycle_sa_email
   question_service_sa_email = module.iam.question_service_sa_email
 
-  depends_on = [module.iam]
+  depends_on = [module.iam, module.gke]
 }
 
 # -----------------------------------------------------------------------------
