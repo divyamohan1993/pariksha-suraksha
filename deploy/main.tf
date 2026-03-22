@@ -37,6 +37,12 @@ variable "spot" {
   default     = true
 }
 
+variable "gemini_api_key" {
+  description = "Gemini API key for AI question generation. Get from: gcloud services api-keys create"
+  sensitive   = true
+  default     = ""
+}
+
 # Firewall rule
 resource "google_compute_firewall" "pariksha_http" {
   name    = "pariksha-allow-http"
@@ -79,7 +85,9 @@ resource "google_compute_instance" "pariksha" {
   tags = ["pariksha"]
 
   metadata = {
-    startup-script = file("${path.module}/startup.sh")
+    startup-script = templatefile("${path.module}/startup.sh", {
+      gemini_api_key = var.gemini_api_key
+    })
   }
 
   service_account {

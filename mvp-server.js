@@ -1,7 +1,59 @@
 const express = require("express");
 const crypto = require("crypto");
+const https = require("https");
 const app = express();
 app.use(express.json());
+
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
+
+// Call Gemini API to generate a question template
+function callGemini(subject, topic, subtopic, bloomLevel) {
+  return new Promise((resolve, reject) => {
+    if (!GEMINI_API_KEY) return reject(new Error("GEMINI_API_KEY not set"));
+    const prompt = `You are an expert question paper setter for competitive exams like NEET/JEE.
+Generate a parameterized multiple-choice question template for:
+- Subject: ${subject}
+- Topic: ${topic}
+${subtopic ? `- Subtopic: ${subtopic}` : ""}
+- Bloom's Level: ${bloomLevel || "apply"}
+
+Return ONLY valid JSON (no markdown, no backticks):
+{
+  "text": "question text with {{param_name}} placeholders for variable values",
+  "parameters": [{"name": "param_name", "type": "float", "min": 1, "max": 100, "step": 1}],
+  "answerFormula": "mathematical formula using param names that gives the correct answer",
+  "distractors": [
+    {"formula": "common wrong formula 1", "type": "common_misconception"},
+    {"formula": "common wrong formula 2", "type": "calculation_error"},
+    {"formula": "common wrong formula 3", "type": "unit_error"}
+  ],
+  "subject": "${subject}",
+  "topic": "${topic}",
+  "bloomLevel": "${bloomLevel || "apply"}"
+}`;
+
+    const body = JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] });
+    const url = new URL(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${GEMINI_API_KEY}`);
+
+    const req = https.request(url, { method: "POST", headers: { "Content-Type": "application/json" } }, (res) => {
+      let data = "";
+      res.on("data", (c) => data += c);
+      res.on("end", () => {
+        try {
+          const parsed = JSON.parse(data);
+          const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text || "";
+          // Extract JSON from response (may have markdown backticks)
+          const jsonMatch = text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) resolve(JSON.parse(jsonMatch[0]));
+          else reject(new Error("No JSON in Gemini response"));
+        } catch (e) { reject(e); }
+      });
+    });
+    req.on("error", reject);
+    req.write(body);
+    req.end();
+  });
+}
 
 const db = { exams: {}, candidates: {}, sessions: {}, submissions: {} };
 
@@ -98,7 +150,116 @@ app.get("/api/v1/verify/:hash", (req,res) => {
   res.json({verified:true, ...s});
 });
 
-app.get("/api/v1/questions", (_,res) => res.json(sampleQuestions.map(q=>({id:q.id,subject:q.subject,topic:q.topic,text:q.text,status:"CALIBRATED"}))));
-app.get("/api/v1/dashboard/stats", (_,res) => res.json({totalExams:Object.keys(db.exams).length,totalQuestions:sampleQuestions.length,totalCandidates:Object.keys(db.candidates).length,totalSubmissions:Object.keys(db.submissions).length}));
+// Question bank
+app.get("/api/v1/questions", (_,res) => {
+  const all = [...sampleQuestions.map(q=>({id:q.id,subject:q.subject,topic:q.topic,text:q.text,status:"CALIBRATED",source:"seed"})),
+    ...Object.values(db.generatedQuestions||{})];
+  res.json(all);
+});
 
-app.listen(3000, "0.0.0.0", () => console.log("ParikshaSuraksha MVP API on :3000"));
+app.get("/api/v1/questions/:id", (req,res) => {
+  const q = sampleQuestions.find(q=>q.id===req.params.id) || (db.generatedQuestions||{})[req.params.id];
+  if(!q) return res.status(404).json({error:"Question not found"});
+  res.json(q);
+});
+
+// Generate question with Gemini AI
+app.post("/api/v1/questions/generate", async (req,res) => {
+  const {subject, topic, subtopic, bloomLevel} = req.body;
+  if(!subject||!topic) return res.status(400).json({error:"subject and topic required"});
+  try {
+    const template = await callGemini(subject, topic, subtopic, bloomLevel);
+    const id = "genq_"+crypto.randomBytes(4).toString("hex");
+    const question = { id, ...template, status:"GENERATED", source:"gemini", generatedAt:new Date().toISOString() };
+    if(!db.generatedQuestions) db.generatedQuestions = {};
+    db.generatedQuestions[id] = question;
+    res.json(question);
+  } catch(e) {
+    res.status(500).json({error:"Gemini generation failed: "+e.message, hint: GEMINI_API_KEY ? "Key is set but API call failed" : "Set GEMINI_API_KEY environment variable"});
+  }
+});
+
+// Approve generated question (move to calibrated)
+app.post("/api/v1/questions/:id/approve", (req,res) => {
+  const q = (db.generatedQuestions||{})[req.params.id];
+  if(!q) return res.status(404).json({error:"Question not found"});
+  q.status = "CALIBRATED";
+  q.approvedAt = new Date().toISOString();
+  res.json(q);
+});
+
+// Create question manually
+app.post("/api/v1/questions", (req,res) => {
+  const id = "q_"+crypto.randomBytes(4).toString("hex");
+  if(!db.generatedQuestions) db.generatedQuestions = {};
+  db.generatedQuestions[id] = { id, ...req.body, status:"CREATED", createdAt:new Date().toISOString() };
+  res.json(db.generatedQuestions[id]);
+});
+
+// Exam centers
+app.get("/api/v1/centers", (_,res) => {
+  res.json([
+    {id:"center_delhi",name:"Delhi Center",city:"New Delhi",seats:50,status:"ACTIVE"},
+    {id:"center_mumbai",name:"Mumbai Center",city:"Mumbai",seats:100,status:"ACTIVE"},
+    {id:"center_bangalore",name:"Bangalore Center",city:"Bangalore",seats:75,status:"ACTIVE"},
+    {id:"center_kolkata",name:"Kolkata Center",city:"Kolkata",seats:60,status:"ACTIVE"},
+    {id:"center_chennai",name:"Chennai Center",city:"Chennai",seats:80,status:"ACTIVE"}
+  ]);
+});
+
+// Exam blueprint
+app.post("/api/v1/exams/:id/blueprint", (req,res) => {
+  const exam = db.exams[req.params.id];
+  if(!exam) return res.status(404).json({error:"Exam not found"});
+  exam.blueprint = req.body;
+  exam.status = "BLUEPRINT_SET";
+  res.json(exam);
+});
+
+// List candidates for an exam
+app.get("/api/v1/exams/:id/candidates", (req,res) => {
+  const candidates = Object.values(db.candidates).filter(c=>c.examId===req.params.id);
+  res.json(candidates);
+});
+
+// Dashboard stats
+app.get("/api/v1/dashboard/stats", (_,res) => {
+  const genQ = Object.keys(db.generatedQuestions||{}).length;
+  res.json({
+    totalExams:Object.keys(db.exams).length,
+    totalQuestions:sampleQuestions.length + genQ,
+    totalCandidates:Object.keys(db.candidates).length,
+    totalSubmissions:Object.keys(db.submissions).length,
+    activeExams:Object.values(db.exams).filter(e=>e.status==="ACTIVE").length,
+    generatedQuestions: genQ
+  });
+});
+
+// Audit events (simulated)
+app.get("/api/v1/audit/events", (_,res) => {
+  const events = [];
+  Object.values(db.exams).forEach(e => {
+    events.push({id:crypto.randomUUID(),type:"exam_create",examId:e.id,timestamp:e.createdAt,actor:"admin"});
+    if(e.status==="ACTIVE") events.push({id:crypto.randomUUID(),type:"key_release",examId:e.id,timestamp:e.activatedAt,actor:"system"});
+  });
+  Object.values(db.submissions).forEach(s => {
+    events.push({id:crypto.randomUUID(),type:"submit",examId:s.examId,candidateId:s.candidateId,timestamp:s.submittedAt,actor:s.candidateId});
+  });
+  res.json(events.sort((a,b)=>new Date(b.timestamp)-new Date(a.timestamp)));
+});
+
+app.get("/api/v1/audit/events/:examId", (req,res) => {
+  // Reuse above filtering by examId
+  const events = [];
+  const e = db.exams[req.params.examId];
+  if(e) {
+    events.push({id:crypto.randomUUID(),type:"exam_create",examId:e.id,timestamp:e.createdAt,actor:"admin"});
+    if(e.status==="ACTIVE") events.push({id:crypto.randomUUID(),type:"key_release",examId:e.id,timestamp:e.activatedAt,actor:"system"});
+  }
+  res.json(events);
+});
+
+app.listen(3000, "0.0.0.0", () => {
+  console.log("ParikshaSuraksha MVP API on :3000");
+  console.log("Gemini API key:", GEMINI_API_KEY ? "SET ✓" : "NOT SET ✗ (set GEMINI_API_KEY env var)");
+});
