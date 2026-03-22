@@ -21,7 +21,8 @@ resource "random_id" "suffix" {
 }
 
 locals {
-  name_suffix = random_id.suffix.hex
+  name_suffix      = random_id.suffix.hex
+  cluster_location = var.cluster_location != "" ? var.cluster_location : var.region
   common_labels = {
     environment = var.environment
     project     = "pariksha-suraksha"
@@ -108,6 +109,22 @@ module "gke" {
   services_range_name        = module.network.services_range_name
   master_authorized_networks = var.master_authorized_networks
 
+  # Configurable sizing (MVP uses smaller instances)
+  cluster_location     = local.cluster_location
+  general_machine_type = var.general_machine_type
+  general_min_nodes    = var.general_min_nodes
+  general_max_nodes    = var.general_max_nodes
+  general_disk_size    = var.general_disk_size
+  general_disk_type    = var.general_disk_type
+  use_spot_instances   = var.use_spot_instances
+  compute_machine_type = var.compute_machine_type
+  compute_max_nodes    = var.compute_max_nodes
+  compute_disk_size    = var.compute_disk_size
+  fabric_machine_type  = var.fabric_machine_type
+  fabric_min_nodes     = var.fabric_min_nodes
+  fabric_max_nodes     = var.fabric_max_nodes
+  fabric_disk_size     = var.fabric_disk_size
+
   depends_on = [module.network]
 }
 
@@ -145,12 +162,14 @@ module "firestore" {
 module "redis" {
   source = "./modules/redis"
 
-  project_id  = var.project_id
-  region      = var.region
-  environment = var.environment
-  name_suffix = local.name_suffix
-  labels      = local.common_labels
-  network_id  = module.network.network_id
+  project_id      = var.project_id
+  region          = var.region
+  environment     = var.environment
+  name_suffix     = local.name_suffix
+  labels          = local.common_labels
+  network_id      = module.network.network_id
+  redis_tier      = var.redis_tier
+  redis_memory_gb = var.redis_memory_gb
 
   depends_on = [module.network]
 }

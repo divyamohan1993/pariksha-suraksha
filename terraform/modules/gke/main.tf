@@ -7,7 +7,7 @@ resource "google_container_cluster" "pariksha" {
 
   name     = "pariksha-${var.environment}-${var.name_suffix}"
   project  = var.project_id
-  location = var.region
+  location = var.cluster_location
 
   # Use separately managed node pools
   remove_default_node_pool = true
@@ -112,14 +112,14 @@ resource "google_container_cluster" "pariksha" {
 resource "google_container_node_pool" "general" {
   name     = "general"
   project  = var.project_id
-  location = var.region
+  location = var.cluster_location
   cluster  = google_container_cluster.pariksha.name
 
-  initial_node_count = 2
+  initial_node_count = var.general_min_nodes
 
   autoscaling {
-    min_node_count = 2
-    max_node_count = 10
+    min_node_count = var.general_min_nodes
+    max_node_count = var.general_max_nodes
   }
 
   management {
@@ -128,9 +128,10 @@ resource "google_container_node_pool" "general" {
   }
 
   node_config {
-    machine_type = "e2-standard-4"
-    disk_size_gb = 100
-    disk_type    = "pd-ssd"
+    machine_type = var.general_machine_type
+    disk_size_gb = var.general_disk_size
+    disk_type    = var.general_disk_type
+    spot         = var.use_spot_instances
 
     oauth_scopes = [
       "https://www.googleapis.com/auth/cloud-platform",
@@ -163,14 +164,14 @@ resource "google_container_node_pool" "general" {
 resource "google_container_node_pool" "compute" {
   name     = "compute"
   project  = var.project_id
-  location = var.region
+  location = var.cluster_location
   cluster  = google_container_cluster.pariksha.name
 
   initial_node_count = 0
 
   autoscaling {
     min_node_count = 0
-    max_node_count = 5
+    max_node_count = var.compute_max_nodes
   }
 
   management {
@@ -179,9 +180,10 @@ resource "google_container_node_pool" "compute" {
   }
 
   node_config {
-    machine_type = "c2-standard-8"
-    disk_size_gb = 200
-    disk_type    = "pd-ssd"
+    machine_type = var.compute_machine_type
+    disk_size_gb = var.compute_disk_size
+    disk_type    = var.general_disk_type
+    spot         = var.use_spot_instances
 
     oauth_scopes = [
       "https://www.googleapis.com/auth/cloud-platform",
@@ -220,14 +222,14 @@ resource "google_container_node_pool" "compute" {
 resource "google_container_node_pool" "fabric" {
   name     = "fabric"
   project  = var.project_id
-  location = var.region
+  location = var.cluster_location
   cluster  = google_container_cluster.pariksha.name
 
-  initial_node_count = 3
+  initial_node_count = var.fabric_min_nodes
 
   autoscaling {
-    min_node_count = 3
-    max_node_count = 5
+    min_node_count = var.fabric_min_nodes
+    max_node_count = var.fabric_max_nodes
   }
 
   management {
@@ -236,9 +238,10 @@ resource "google_container_node_pool" "fabric" {
   }
 
   node_config {
-    machine_type = "e2-standard-4"
-    disk_size_gb = 200
-    disk_type    = "pd-ssd"
+    machine_type = var.fabric_machine_type
+    disk_size_gb = var.fabric_disk_size
+    disk_type    = var.general_disk_type
+    spot         = var.use_spot_instances
 
     oauth_scopes = [
       "https://www.googleapis.com/auth/cloud-platform",

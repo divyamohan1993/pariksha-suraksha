@@ -27,3 +27,13 @@ variable "network_id" {
   description = "VPC network self-link for private service access"
   type        = string
 }
+
+variable "redis_tier" {
+  type    = string
+  default = "STANDARD_HA"
+}
+
+variable "redis_memory_gb" {
+  type    = number
+  default = 5
+}

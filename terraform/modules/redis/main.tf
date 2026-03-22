@@ -6,8 +6,8 @@ resource "google_redis_instance" "pariksha" {
   name           = "pariksha-redis-${var.environment}-${var.name_suffix}"
   project        = var.project_id
   region         = var.region
-  tier           = "STANDARD_HA"
-  memory_size_gb = 5
+  tier           = var.redis_tier
+  memory_size_gb = var.redis_memory_gb
   redis_version  = "REDIS_7_2"
 
   authorized_network = var.network_id
