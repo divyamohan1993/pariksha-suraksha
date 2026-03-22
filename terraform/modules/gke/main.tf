@@ -89,12 +89,12 @@ resource "google_container_cluster" "pariksha" {
     }
   }
 
-  # Maintenance window (Sunday 2 AM IST = Saturday 8:30 PM UTC)
+  # Maintenance window (Sunday 2-10 AM IST = Saturday 8:30 PM - 4:30 AM UTC, 8h window)
   maintenance_policy {
     recurring_window {
       start_time = "2026-01-01T20:30:00Z"
       end_time   = "2026-01-02T04:30:00Z"
-      recurrence = "FREQ=WEEKLY;BYDAY=SA"
+      recurrence = "FREQ=WEEKLY;BYDAY=SA,WE"
     }
   }
 

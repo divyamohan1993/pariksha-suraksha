@@ -489,16 +489,17 @@ resource "google_bigquery_table" "collusion_scores" {
 }
 
 # -----------------------------------------------------------------------------
-# Materialized View: distractor profiles for collusion detection lookups
+# View: Latest distractor profiles for collusion detection lookups
+# (Cannot use materialized view due to GCP self-join restriction)
 # -----------------------------------------------------------------------------
 resource "google_bigquery_table" "distractor_profiles_latest" {
   dataset_id          = google_bigquery_dataset.pariksha_analytics.dataset_id
-  table_id            = "distractor_profiles_latest_mv"
+  table_id            = "distractor_profiles_latest_v"
   project             = var.project_id
   deletion_protection = false
 
-  materialized_view {
-    query               = <<-SQL
+  view {
+    query = <<-SQL
       SELECT
         dp.*
       FROM `${var.project_id}.${google_bigquery_dataset.pariksha_analytics.dataset_id}.distractor_profiles` dp
@@ -514,8 +515,7 @@ resource "google_bigquery_table" "distractor_profiles_latest" {
         AND dp.instantiation_id = latest.instantiation_id
         AND dp.profile_timestamp = latest.latest_timestamp
     SQL
-    enable_refresh      = true
-    refresh_interval_ms = 3600000 # Refresh every hour
+    use_legacy_sql = false
   }
 
   labels = var.labels
