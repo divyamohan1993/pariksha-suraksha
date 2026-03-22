@@ -1,27 +1,44 @@
 # ParikshaSuraksha — One-Click Deploy / Destroy
 #
 # Usage:
-#   make deploy          # Create VM, install everything, start services
-#   make destroy         # Delete VM and all resources
-#   make status          # Check if site is up
-#   make ssh             # SSH into the VM
-#   make logs            # View service logs
+#   make deploy                                    # Deploy (creates Gemini key automatically)
+#   make deploy GEMINI_API_KEY=your-key            # Deploy with existing key
+#   make destroy                                   # Delete VM and all resources
+#   make status                                    # Check if site is up
+#   make ssh                                       # SSH into the VM
+#   make logs                                      # View service logs
 
 PROJECT_ID ?= lmsforshantithakur
 REGION ?= asia-south1
 ZONE ?= asia-south1-a
+GEMINI_API_KEY ?=
 
-.PHONY: deploy destroy status ssh logs
+.PHONY: deploy destroy status ssh logs gemini-key
 
-deploy:
+gemini-key:
+ifndef GEMINI_API_KEY
+	$(eval GEMINI_API_KEY := $(shell gcloud services api-keys create \
+		--display-name="pariksha-gemini" \
+		--project=$(PROJECT_ID) \
+		--format="value(keyString)" 2>/dev/null || echo ""))
+	@if [ -z "$(GEMINI_API_KEY)" ]; then \
+		echo "WARNING: Could not create Gemini API key. Question generation will be disabled."; \
+	else \
+		echo ">>> Gemini API key created."; \
+	fi
+endif
+
+deploy: gemini-key
 	@echo ">>> Deploying ParikshaSuraksha..."
+	@echo ">>> Gemini API key: $(if $(GEMINI_API_KEY),SET,NOT SET — question generation disabled)"
 	cd deploy && terraform init -input=false && \
 		terraform apply -auto-approve \
 			-var="project_id=$(PROJECT_ID)" \
 			-var="region=$(REGION)" \
-			-var="zone=$(ZONE)"
+			-var="zone=$(ZONE)" \
+			-var="gemini_api_key=$(GEMINI_API_KEY)"
 	@echo ""
-	@echo ">>> VM created. Services starting (takes ~3 minutes)."
+	@echo ">>> VM created. Services starting (takes ~3-5 minutes for npm install)."
 	@echo ">>> Run 'make status' to check when ready."
 
 destroy:
@@ -29,7 +46,8 @@ destroy:
 	cd deploy && terraform destroy -auto-approve \
 		-var="project_id=$(PROJECT_ID)" \
 		-var="region=$(REGION)" \
-		-var="zone=$(ZONE)"
+		-var="zone=$(ZONE)" \
+		-var="gemini_api_key="
 	@echo ">>> All resources destroyed."
 
 status:
