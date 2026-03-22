@@ -1,49 +1,85 @@
-# Dependencies
+# ══════════════════════════════════════════════════
+# ParikshaSuraksha — .gitignore
+# Rule: Only source code goes to GitHub.
+# Generated artifacts, dependencies, and secrets do NOT.
+# ══════════════════════════════════════════════════
+
+# ── Dependencies (generated via npm install / pip install) ──
 node_modules/
 __pycache__/
 *.pyc
+*.pyo
 .venv/
 venv/
+.eggs/
+*.egg-info/
+package-lock.json
 
-# Build outputs
+# ── Build outputs (generated via npm run build / tsc / next build) ──
 dist/
 build/
 .next/
 out/
 *.js.map
+*.tsbuildinfo
 
-# Environment
-.env
-.env.local
-.env.*.local
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Terraform
+# ── Terraform generated files ──
 terraform/.terraform/
 terraform/*.tfstate
 terraform/*.tfstate.backup
 terraform/tfplan
 terraform/.terraform.lock.hcl
+terraform/crash.log
 
-# Docker
+# ── Docker generated ──
 *.log
 
-# Test
+# ── Test outputs (generated via npm test / pytest) ──
 coverage/
 .pytest_cache/
 .nyc_output/
+htmlcov/
+.coverage
+junit.xml
+test-results/
 
-# Secrets (NEVER commit)
+# ── Environment & Secrets (NEVER commit) ──
+.env
+.env.local
+.env.*.local
 *.pem
 *.key
+*.p12
+*.pfx
 *credentials*.json
 *service-account*.json
+secrets/
+
+# ── IDE & Editor ──
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ── OS generated ──
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ── Misc generated ──
+*.tmp
+*.bak
+*.orig
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
