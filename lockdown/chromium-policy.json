@@ -1,0 +1,228 @@
+{
+    "_comment": "ParikshaSuraksha -- Chromium Enterprise Policy for Exam Kiosk Lockdown",
+    "_comment2": "Install to: /etc/chromium/policies/managed/pariksha-policy.json",
+    "_comment3": "These policies are enforced at the browser engine level and cannot be overridden by the user.",
+
+    "___SECTION___KIOSK_MODE": "=== Kiosk and Fullscreen ===",
+
+    "KioskModeEnabled": true,
+    "FullscreenAllowed": true,
+    "ForceMaximizeOnFirstRun": true,
+
+    "___SECTION___URL_BLOCKING": "=== URL Allow/Block Lists ===",
+
+    "URLBlocklist": [
+        "chrome://*",
+        "chrome-extension://*",
+        "about:*",
+        "file://*",
+        "ftp://*",
+        "javascript:*",
+        "data:*",
+        "blob:*",
+        "ws://*",
+        "wss://*",
+        "devtools://*",
+        "view-source:*",
+        "chrome-devtools://*"
+    ],
+
+    "URLAllowlist": [
+        "http://pariksha.local",
+        "http://pariksha.local/*",
+        "https://pariksha.local",
+        "https://pariksha.local/*",
+        "http://192.168.1.1",
+        "http://192.168.1.1/*",
+        "https://192.168.1.1",
+        "https://192.168.1.1/*"
+    ],
+
+    "___SECTION___EXTENSIONS": "=== Extensions ===",
+
+    "ExtensionInstallBlocklist": ["*"],
+    "ExtensionInstallAllowlist": [],
+    "ExtensionInstallForcelist": [],
+    "BlockExternalExtensions": true,
+    "ExtensionAllowedTypes": [],
+
+    "___SECTION___DEV_TOOLS": "=== Developer Tools ===",
+
+    "DeveloperToolsAvailability": 2,
+    "DevToolsGenAiSettings": 2,
+
+    "___SECTION___BOOKMARKS_HISTORY": "=== Bookmarks, History, Downloads ===",
+
+    "BookmarkBarEnabled": false,
+    "EditBookmarksEnabled": false,
+    "ManagedBookmarks": [],
+    "SavingBrowserHistoryDisabled": true,
+    "AllowDeletingBrowserHistory": false,
+    "DownloadRestrictions": 3,
+    "DownloadDirectory": "/dev/null",
+
+    "___SECTION___PRINTING": "=== Printing ===",
+
+    "PrintingEnabled": false,
+    "CloudPrintSubmitEnabled": false,
+    "PrintPreviewUseSystemDefaultPrinter": false,
+    "DisablePrintPreview": true,
+
+    "___SECTION___SAVE_FIND": "=== Saving and Find ===",
+
+    "DisableScreenshots": true,
+    "AllowFileSelectionDialogs": false,
+
+    "___SECTION___PASSWORD_AUTOFILL": "=== Password Manager and Autofill ===",
+
+    "PasswordManagerEnabled": false,
+    "AutofillAddressEnabled": false,
+    "AutofillCreditCardEnabled": false,
+    "ImportAutofillFormData": false,
+    "ImportBookmarks": false,
+    "ImportHistory": false,
+    "ImportSavedPasswords": false,
+
+    "___SECTION___TRANSLATE_SPELL": "=== Translate and Spell Check ===",
+
+    "TranslateEnabled": false,
+    "SpellCheckServiceEnabled": false,
+    "SpellcheckEnabled": false,
+
+    "___SECTION___SEARCH": "=== Search ===",
+
+    "DefaultSearchProviderEnabled": false,
+
+    "___SECTION___WEBRTC": "=== WebRTC (Screen Sharing Prevention) ===",
+
+    "WebRtcEventLogCollectionAllowed": false,
+    "WebRtcLocalIpsAllowedUrls": [],
+    "WebRtcUdpPortRange": "0-0",
+    "VideoCaptureAllowed": false,
+    "AudioCaptureAllowed": false,
+    "ScreenCaptureAllowed": false,
+
+    "___SECTION___WEB_APIS": "=== WebUSB, WebBluetooth, WebSerial ===",
+
+    "DefaultWebUsbGuardSetting": 2,
+    "WebUsbAskForUrls": [],
+    "WebUsbBlockedForUrls": ["*"],
+    "DefaultWebBluetoothGuardSetting": 2,
+    "DefaultSerialGuardSetting": 2,
+    "SerialAskForUrls": [],
+    "SerialBlockedForUrls": ["*"],
+    "DefaultWebHidGuardSetting": 2,
+
+    "___SECTION___CLIPBOARD": "=== Clipboard ===",
+
+    "DefaultClipboardSetting": 2,
+    "ClipboardAllowedForUrls": [],
+    "ClipboardBlockedForUrls": ["*"],
+
+    "___SECTION___NOTIFICATIONS": "=== Notifications ===",
+
+    "DefaultNotificationsSetting": 2,
+    "NotificationsAllowedForUrls": [],
+    "NotificationsBlockedForUrls": ["*"],
+
+    "___SECTION___PRIVACY": "=== Privacy and Tracking ===",
+
+    "EnableDoNotTrack": true,
+    "MetricsReportingEnabled": false,
+    "SafeBrowsingEnabled": false,
+    "SafeBrowsingExtendedReportingEnabled": false,
+    "UrlKeyedAnonymizedDataCollectionEnabled": false,
+    "NetworkPredictionOptions": 2,
+    "AlternateErrorPagesEnabled": false,
+    "SearchSuggestEnabled": false,
+    "ShowAppsShortcutInBookmarkBar": false,
+    "ShowHomeButton": false,
+    "BrowserSignin": 0,
+    "SyncDisabled": true,
+    "PromotionalTabsEnabled": false,
+    "BrowserAddPersonEnabled": false,
+    "BrowserGuestModeEnabled": false,
+    "UserFeedbackAllowed": false,
+    "SpellCheckServiceEnabled": false,
+
+    "___SECTION___NETWORK": "=== Network ===",
+
+    "DnsOverHttpsMode": "off",
+    "BuiltInDnsClientEnabled": false,
+    "ProxyMode": "direct",
+
+    "___SECTION___SECURITY": "=== Security Settings ===",
+
+    "IncognitoModeAvailability": 1,
+    "BrowserSwitcherEnabled": false,
+    "AllowOutdatedPlugins": false,
+    "AlwaysOpenPdfExternally": false,
+    "BackgroundModeEnabled": false,
+    "DefaultBrowserSettingEnabled": false,
+    "AutoplayAllowed": false,
+    "TabDiscardingExceptions": ["http://pariksha.local/*"],
+
+    "___SECTION___GEOLOCATION": "=== Geolocation ===",
+
+    "DefaultGeolocationSetting": 2,
+
+    "___SECTION___CAMERA_MIC": "=== Camera and Microphone ===",
+
+    "VideoCaptureAllowedUrls": [],
+    "AudioCaptureAllowedUrls": [],
+
+    "___SECTION___POPUPS": "=== Pop-ups ===",
+
+    "DefaultPopupsSetting": 2,
+    "PopupsAllowedForUrls": ["http://pariksha.local/*"],
+    "PopupsBlockedForUrls": ["*"],
+
+    "___SECTION___COOKIES": "=== Cookies (allow for exam server only) ===",
+
+    "DefaultCookiesSetting": 2,
+    "CookiesAllowedForUrls": [
+        "http://pariksha.local",
+        "http://pariksha.local/*",
+        "http://192.168.1.1",
+        "http://192.168.1.1/*"
+    ],
+    "CookiesBlockedForUrls": ["*"],
+
+    "___SECTION___JAVASCRIPT": "=== JavaScript (allow for exam server only) ===",
+
+    "DefaultJavaScriptSetting": 2,
+    "JavaScriptAllowedForUrls": [
+        "http://pariksha.local/*",
+        "http://192.168.1.1/*"
+    ],
+    "JavaScriptBlockedForUrls": ["*"],
+
+    "___SECTION___IMAGES": "=== Images (allow for exam server only) ===",
+
+    "DefaultImagesSetting": 2,
+    "ImagesAllowedForUrls": [
+        "http://pariksha.local/*",
+        "http://192.168.1.1/*"
+    ],
+    "ImagesBlockedForUrls": ["*"],
+
+    "___SECTION___HOMEPAGE": "=== Homepage and New Tab ===",
+
+    "HomepageLocation": "http://pariksha.local",
+    "HomepageIsNewTabPage": false,
+    "NewTabPageLocation": "http://pariksha.local",
+    "RestoreOnStartup": 4,
+    "RestoreOnStartupURLs": ["http://pariksha.local"],
+
+    "___SECTION___MISC": "=== Miscellaneous ===",
+
+    "ShowCastIconInToolbar": false,
+    "EnableMediaRouter": false,
+    "HardwareAccelerationModeEnabled": true,
+    "BrowserThemeColor": "#1a1a2e",
+    "CommandLineFlagSecurityWarningsEnabled": false,
+    "ExternalProtocolDialogShowAlwaysOpenCheckbox": false,
+    "SSHClientEnabled": false,
+    "TaskManagerEndProcessEnabled": false,
+    "ContextMenuEnabled": false
+}
