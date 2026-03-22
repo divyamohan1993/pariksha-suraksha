@@ -64,7 +64,10 @@ services:
   # ─────────────────────────────────────────────
   api-gateway:
     build:
-      context: ./packages/api-gateway
+      context: .
+      dockerfile: Dockerfile.nestjs
+      args:
+        SERVICE_NAME: api-gateway
     environment:
       - NODE_ENV=production
       - PORT=3000
@@ -92,7 +95,10 @@ services:
 
   question-service:
     build:
-      context: ./packages/question-service
+      context: .
+      dockerfile: Dockerfile.nestjs
+      args:
+        SERVICE_NAME: question-service
     environment:
       - NODE_ENV=production
       - PORT=3001
@@ -107,7 +113,10 @@ services:
 
   paper-generator:
     build:
-      context: ./packages/paper-generator
+      context: .
+      dockerfile: Dockerfile.nestjs
+      args:
+        SERVICE_NAME: paper-generator
     environment:
       - NODE_ENV=production
       - PORT=3002
@@ -125,7 +134,10 @@ services:
 
   crypto-lifecycle:
     build:
-      context: ./packages/crypto-lifecycle
+      context: .
+      dockerfile: Dockerfile.nestjs
+      args:
+        SERVICE_NAME: crypto-lifecycle
     environment:
       - NODE_ENV=production
       - PORT=3003
@@ -144,7 +156,10 @@ services:
 
   exam-session-service:
     build:
-      context: ./packages/exam-session-service
+      context: .
+      dockerfile: Dockerfile.nestjs
+      args:
+        SERVICE_NAME: exam-session-service
     environment:
       - NODE_ENV=production
       - PORT=3004
@@ -161,7 +176,10 @@ services:
 
   collusion-engine:
     build:
-      context: ./packages/collusion-engine
+      context: .
+      dockerfile: Dockerfile.nestjs
+      args:
+        SERVICE_NAME: collusion-engine
     environment:
       - NODE_ENV=production
       - PORT=3005
@@ -175,7 +193,10 @@ services:
 
   blockchain-service:
     build:
-      context: ./packages/blockchain-service
+      context: .
+      dockerfile: Dockerfile.nestjs
+      args:
+        SERVICE_NAME: blockchain-service
     environment:
       - NODE_ENV=production
       - PORT=3006
@@ -192,7 +213,10 @@ services:
   # ─────────────────────────────────────────────
   admin-dashboard:
     build:
-      context: ./packages/admin-dashboard
+      context: .
+      dockerfile: Dockerfile.nextjs
+      args:
+        SERVICE_NAME: admin-dashboard
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_API_URL=http://api-gateway:3000
@@ -203,7 +227,10 @@ services:
 
   candidate-portal:
     build:
-      context: ./packages/candidate-portal
+      context: .
+      dockerfile: Dockerfile.nextjs
+      args:
+        SERVICE_NAME: candidate-portal
     environment:
       - NODE_ENV=production
       - NEXT_PUBLIC_API_URL=http://api-gateway:3000

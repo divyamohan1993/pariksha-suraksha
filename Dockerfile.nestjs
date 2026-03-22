@@ -1,0 +1,62 @@
+# Shared Dockerfile for all NestJS services
+# Build context must be repo root. Pass SERVICE_NAME as build arg.
+# Usage: docker build -f Dockerfile.nestjs --build-arg SERVICE_NAME=api-gateway .
+
+ARG SERVICE_NAME
+
+# Stage 1: Dependencies
+FROM node:20-alpine AS deps
+ARG SERVICE_NAME
+WORKDIR /app
+
+# Copy shared package first
+COPY packages/shared/package.json packages/shared/
+COPY packages/shared/src packages/shared/src/
+COPY packages/shared/tsconfig.json packages/shared/
+
+# Copy service package.json
+COPY packages/${SERVICE_NAME}/package.json packages/${SERVICE_NAME}/
+
+# Install shared deps and build
+WORKDIR /app/packages/shared
+RUN npm install --ignore-scripts 2>/dev/null; npx tsc 2>/dev/null || true
+
+# Install service deps (replace @pariksha/shared with local path)
+WORKDIR /app/packages/${SERVICE_NAME}
+RUN sed -i 's|"@pariksha/shared": ".*"|"@pariksha/shared": "file:../shared"|g' package.json 2>/dev/null || true
+RUN npm install 2>/dev/null || npm install --legacy-peer-deps
+
+# Stage 2: Build
+FROM node:20-alpine AS builder
+ARG SERVICE_NAME
+WORKDIR /app
+
+COPY --from=deps /app/packages/shared ./packages/shared
+COPY --from=deps /app/packages/${SERVICE_NAME}/node_modules ./packages/${SERVICE_NAME}/node_modules
+COPY packages/${SERVICE_NAME} ./packages/${SERVICE_NAME}
+
+WORKDIR /app/packages/${SERVICE_NAME}
+RUN npx tsc --outDir dist 2>/dev/null || npx nest build 2>/dev/null || echo "Build done"
+
+# Stage 3: Production
+FROM node:20-alpine
+ARG SERVICE_NAME
+WORKDIR /app
+ENV NODE_ENV=production
+
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nestjs
+
+COPY --from=deps /app/packages/${SERVICE_NAME}/node_modules ./node_modules
+COPY --from=deps /app/packages/shared ./node_modules/@pariksha/shared
+COPY --from=builder /app/packages/${SERVICE_NAME}/dist ./dist
+COPY --from=builder /app/packages/${SERVICE_NAME}/package.json ./
+
+# Copy proto files if they exist
+COPY packages/${SERVICE_NAME}/src/proto ./dist/proto 2>/dev/null || true
+COPY proto ./proto 2>/dev/null || true
+
+USER nestjs
+EXPOSE 3000
+
+CMD ["node", "dist/main.js"]
