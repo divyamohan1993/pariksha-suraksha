@@ -69,6 +69,7 @@ Restart=always
 RestartSec=5
 Environment=NODE_ENV=production
 Environment=PORT=3000
+Environment=GEMINI_API_KEY=${gemini_api_key}
 
 [Install]
 WantedBy=multi-user.target
