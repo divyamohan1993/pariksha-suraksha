@@ -11,6 +11,8 @@ import {
   Copy,
   LogIn,
   MapPin,
+  ShieldAlert,
+  ShieldCheck,
 } from "lucide-react";
 import { cn, formatDateTime } from "@/lib/utils";
 import { useExamStore } from "@/lib/exam-store";
@@ -31,6 +33,11 @@ import {
 } from "@/lib/checkpoint";
 import { cacheQuestions, clearAllOfflineData } from "@/lib/offline";
 import { announceToScreenReader } from "@/lib/accessibility";
+import {
+  ExamProctor,
+  type ProctorStatus,
+  type ViolationType,
+} from "@/lib/proctor";
 import QuestionDisplay from "@/components/QuestionDisplay";
 import QuestionGrid from "@/components/QuestionGrid";
 import ExamTimer from "@/components/ExamTimer";
@@ -433,6 +440,8 @@ function ExamTerminal() {
   const activeLanguage = useExamStore((s) => s.activeLanguage);
   const setActiveLanguage = useExamStore((s) => s.setActiveLanguage);
   const sessionId = useExamStore((s) => s.sessionId);
+  const examId = useExamStore((s) => s.examId);
+  const candidateId = useExamStore((s) => s.candidateId);
   const totalDuration = useExamStore((s) => s.totalDurationSeconds);
   const getResponsesPayload = useExamStore((s) => s.getResponsesPayload);
   const setSubmissionResult = useExamStore((s) => s.setSubmissionResult);
@@ -444,6 +453,78 @@ function ExamTerminal() {
   const [showCalculator, setShowCalculator] = useState(false);
   const [calcDisplay, setCalcDisplay] = useState("0");
   const [calcExpression, setCalcExpression] = useState("");
+
+  // --- Proctor state ---
+  const proctorRef = useRef<ExamProctor | null>(null);
+  const [proctorStatus, setProctorStatus] = useState<ProctorStatus>({
+    secure: true,
+    tabSwitchCount: 0,
+    maxTabSwitches: 3,
+    fullscreen: false,
+    online: true,
+  });
+  const [lastViolationType, setLastViolationType] = useState<string | null>(null);
+  const violationAutoSubmitTriggered = useRef(false);
+
+  // Initialize proctor when the terminal mounts
+  useEffect(() => {
+    if (!sessionId || !candidateId || !examId) return;
+
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
+    const proctor = new ExamProctor({
+      sessionId,
+      candidateId,
+      examId,
+      apiUrl,
+      maxTabSwitches: 3,
+      maxFocusLoss: 5,
+      heartbeatInterval: 5000,
+      onViolation: (type: ViolationType, count: number) => {
+        setLastViolationType(type);
+        // Clear the "last violation" indicator after 4 seconds
+        setTimeout(() => setLastViolationType(null), 4000);
+        // Update status snapshot
+        if (proctorRef.current) {
+          setProctorStatus(proctorRef.current.getStatus());
+        }
+        announceToScreenReader(
+          `Security violation detected: ${type.replace(/_/g, " ")}. Count: ${count}.`,
+          "assertive"
+        );
+      },
+      onMaxViolations: () => {
+        if (!violationAutoSubmitTriggered.current) {
+          violationAutoSubmitTriggered.current = true;
+          announceToScreenReader(
+            "Maximum security violations exceeded. Your exam is being auto-submitted.",
+            "assertive"
+          );
+          handleSubmit();
+        }
+      },
+    });
+
+    proctorRef.current = proctor;
+    proctor.start();
+    setProctorStatus(proctor.getStatus());
+
+    return () => {
+      proctor.stop();
+      proctorRef.current = null;
+    };
+  }, [sessionId, candidateId, examId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep the online status in sync
+  useEffect(() => {
+    const onOnline = () => setProctorStatus((s) => ({ ...s, online: true }));
+    const onOffline = () => setProctorStatus((s) => ({ ...s, online: false }));
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
 
   // Auto-submit on timer expiry
   const autoSubmitTriggered = useRef(false);
@@ -475,6 +556,11 @@ function ExamTerminal() {
       await finalCheckpoint();
       stopAutoCheckpoint();
 
+      // Stop proctoring on submit
+      if (proctorRef.current) {
+        proctorRef.current.stop();
+      }
+
       const result = await submitExam({
         sessionId: sessionId!,
         responses: getResponsesPayload(),
@@ -489,6 +575,10 @@ function ExamTerminal() {
       setPhase("active");
       setError(err instanceof Error ? err.message : "Submission failed. Please try again.");
       startAutoCheckpoint();
+      // Restart proctor if submission failed and we are back to active
+      if (proctorRef.current && !proctorRef.current.isLockdownActive()) {
+        proctorRef.current.start();
+      }
       announceToScreenReader("Submission failed. Your responses are saved. Please try again.", "assertive");
     }
   }, [sessionId, getResponsesPayload, totalDuration, timeRemaining, setPhase, setSubmissionResult, setError]);
@@ -721,6 +811,71 @@ function ExamTerminal() {
 
       {/* Mobile navigation drawer toggle (for small screens) */}
       <MobileNavDrawer />
+
+      {/* Proctor Status Panel (bottom-left) */}
+      <ProctorStatusPanel
+        status={proctorStatus}
+        lastViolationType={lastViolationType}
+      />
+    </div>
+  );
+}
+
+// --- Proctor Status Panel ---
+
+function ProctorStatusPanel({
+  status,
+  lastViolationType,
+}: {
+  status: ProctorStatus;
+  lastViolationType: string | null;
+}) {
+  const isViolation = lastViolationType !== null;
+
+  return (
+    <div
+      className={cn(
+        "fixed bottom-16 left-4 z-30 rounded-lg border shadow-lg px-3 py-2 text-xs font-medium transition-colors",
+        isViolation
+          ? "bg-red-50 border-red-300 text-red-800"
+          : "bg-card border-border text-card-foreground"
+      )}
+      role="status"
+      aria-live="polite"
+      aria-label="Proctor status"
+    >
+      <div className="flex items-center gap-2 mb-1">
+        {isViolation ? (
+          <ShieldAlert className="h-4 w-4 text-red-600 flex-shrink-0" aria-hidden="true" />
+        ) : (
+          <ShieldCheck className="h-4 w-4 text-green-600 flex-shrink-0" aria-hidden="true" />
+        )}
+        <span className="font-bold">
+          {isViolation ? "Violation Detected" : "Secure"}
+        </span>
+      </div>
+      <div className="space-y-0.5 text-[11px]">
+        <div className="flex justify-between gap-4">
+          <span className="text-muted-foreground">Tab switches:</span>
+          <span className={cn(
+            status.tabSwitchCount > 0 ? "text-amber-600 font-semibold" : ""
+          )}>
+            {status.tabSwitchCount}/{status.maxTabSwitches}
+          </span>
+        </div>
+        <div className="flex justify-between gap-4">
+          <span className="text-muted-foreground">Fullscreen:</span>
+          <span>{status.fullscreen ? "Yes" : "No"}</span>
+        </div>
+        <div className="flex justify-between gap-4">
+          <span className="text-muted-foreground">Connection:</span>
+          <span className={cn(
+            status.online ? "text-green-600" : "text-red-600 font-semibold"
+          )}>
+            {status.online ? "Online" : "Offline"}
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
