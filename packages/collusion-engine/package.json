@@ -26,8 +26,8 @@
     "@grpc/proto-loader": "^0.7.12",
     "@nestjs/common": "^10.3.8",
     "@nestjs/config": "^3.2.0",
-    "@nestjs/core": "^10.3.8",
-    "@nestjs/microservices": "^10.3.8",
+    "@nestjs/core": "^11.1.19",
+    "@nestjs/microservices": "^11.1.19",
     "@nestjs/platform-express": "^10.3.8",
     "@nestjs/terminus": "^10.2.3",
     "@pariksha/shared": "*",
@@ -35,7 +35,7 @@
     "class-validator": "^0.14.1",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
-    "uuid": "^9.0.1"
+    "uuid": "^14.0.0"
   },
   "devDependencies": {
     "@nestjs/cli": "^10.3.2",
